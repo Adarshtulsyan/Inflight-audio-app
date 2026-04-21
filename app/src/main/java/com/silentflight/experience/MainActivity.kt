@@ -214,8 +214,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun schedulePlayback() {
-        // Clear any existing countdown first
+        // Clear any existing countdown and progress updates first
         countdownRunnable?.let { handler.removeCallbacks(it) }
+        progressRunnable?.let { handler.removeCallbacks(it) }
+        
+        // If playing, pause first to reset cleanly
+        mediaPlayer?.let {
+            if (it.isPlaying) it.pause()
+        }
 
         val now = System.currentTimeMillis()
         val delay = currentStartTime - now
