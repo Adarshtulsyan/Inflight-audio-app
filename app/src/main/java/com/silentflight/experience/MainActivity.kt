@@ -15,6 +15,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import okhttp3.Call
@@ -27,6 +28,7 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private var audioReady = false
     private var countdownRunnable: Runnable? = null
     private var progressRunnable: Runnable? = null
+    private var playbackRunnable: Runnable? = null
     private var fetchRunnable: Runnable? = null
 
     // Replace with your raw config URL (e.g., GitHub raw)
@@ -48,7 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var currentStartTime: Long = 0L
 
     private val defaultStartTime: Long by lazy {
-        Calendar.getInstance().apply {
+        Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
             set(2026, Calendar.APRIL, 21, 20, 45, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
@@ -140,24 +143,25 @@ class MainActivity : AppCompatActivity() {
                     val body = it.body?.string() ?: return
                     try {
                         val json = JSONObject(body)
-                        val timeStr = json.getString("startTime") // Expected format: 2026-04-21T21:00:00
+                        val timeStr = json.getString("startTime")
+                        // Use IST for India-specific sync
                         val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                        sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                         val date = sdf.parse(timeStr)
+                        
                         date?.let { d ->
                             val oldStartTime = currentStartTime
                             currentStartTime = d.time
                             prefs.edit().putLong("start_time", currentStartTime).apply()
-                            Log.d("Config", "Updated start time: $timeStr")
                             
-                            // If the new time is different, re-sync the playback or countdown
-                            if (oldStartTime != currentStartTime) {
-                                handler.post {
-                                    // Check if we are currently "active" (either counting down or playing)
-                                    val isCountingDown = countdownRunnable != null
-                                    val isPlaying = mediaPlayer?.isPlaying == true
+                            handler.post {
+                                Log.d("Config", "Successfully parsed IST time: $timeStr")
+                                // If the new time is different, re-sync
+                                if (oldStartTime != currentStartTime) {
+                                    Toast.makeText(this@MainActivity, "New start time synced: $timeStr IST", Toast.LENGTH_SHORT).show()
                                     
-                                    if (isCountingDown || isPlaying) {
-                                        Log.d("Config", "Re-syncing playback to new start time")
+                                    // Re-sync if we are currently active (counting down or playing)
+                                    if (countdownRunnable != null || (mediaPlayer != null && mediaPlayer!!.isPlaying) || statusText.text.contains("sync")) {
                                         schedulePlayback()
                                     }
                                 }
@@ -217,9 +221,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun schedulePlayback() {
-        // Clear any existing countdown and progress updates first
+        // Clear any existing countdown, progress updates, and pending playback starts
         countdownRunnable?.let { handler.removeCallbacks(it) }
         progressRunnable?.let { handler.removeCallbacks(it) }
+        playbackRunnable?.let { handler.removeCallbacks(it) }
         
         // If playing, pause first to reset cleanly
         mediaPlayer?.let {
@@ -235,13 +240,16 @@ class MainActivity : AppCompatActivity() {
                 override fun run() {
                     statusText.text = "⏳ Starts in ${remaining}s"
                     remaining--
-                    if (remaining >= 0) handler.postDelayed(this, 1000)
+                    if (remaining >= 0) {
+                        handler.postDelayed(this, 1000)
+                    }
                 }
             }
             countdownRunnable = tick
             handler.post(tick)
 
-            handler.postDelayed({
+            val startTask = Runnable {
+                playbackRunnable = null
                 countdownRunnable?.let { handler.removeCallbacks(it) }
                 mediaPlayer?.let {
                     it.seekTo(0)
@@ -250,15 +258,23 @@ class MainActivity : AppCompatActivity() {
                     showPlayer()
                     startProgressUpdates()
                 }
-            }, delay)
+            }
+            playbackRunnable = startTask
+            handler.postDelayed(startTask, delay)
         } else {
             val msLate = (-delay).toInt().coerceAtLeast(0)
             mediaPlayer?.let {
-                it.seekTo(msLate)
-                it.start()
-                statusText.text = "▶️ Joined in sync"
-                showPlayer()
-                startProgressUpdates()
+                val duration = it.duration
+                if (msLate > duration && duration > 0) {
+                    statusText.text = "🏁 Session has finished"
+                    stopPlayback()
+                } else {
+                    it.seekTo(msLate)
+                    it.start()
+                    statusText.text = "▶️ Joined in sync"
+                    showPlayer()
+                    startProgressUpdates()
+                }
             }
         }
     }
@@ -293,8 +309,10 @@ class MainActivity : AppCompatActivity() {
     private fun stopPlayback() {
         countdownRunnable?.let { handler.removeCallbacks(it) }
         progressRunnable?.let { handler.removeCallbacks(it) }
+        playbackRunnable?.let { handler.removeCallbacks(it) }
         countdownRunnable = null
         progressRunnable = null
+        playbackRunnable = null
 
         mediaPlayer?.apply {
             if (isPlaying) pause()
@@ -341,6 +359,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         countdownRunnable?.let { handler.removeCallbacks(it) }
         progressRunnable?.let { handler.removeCallbacks(it) }
+        playbackRunnable?.let { handler.removeCallbacks(it) }
         fetchRunnable?.let { handler.removeCallbacks(it) }
         mediaPlayer?.release()
         mediaPlayer = null
