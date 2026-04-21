@@ -31,7 +31,7 @@ class MainActivity : AppCompatActivity() {
     // Matches new Date("2026-04-21T17:25:00") in JS — interpreted as local time
     private val globalStartTime: Long by lazy {
         Calendar.getInstance().apply {
-            set(2026, Calendar.APRIL, 21, 19, 30, 0)
+            set(2026, Calendar.APRIL, 21, 20, 45, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
     }
