@@ -43,6 +43,7 @@ jobs:
         name: Latest Build
         allowUpdates: true
         replacesArtifacts: true
+        removeArtifacts: false
         makeLatest: true
         prerelease: true
         body: "Direct download link for the latest APK build."
