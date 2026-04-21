@@ -26,7 +26,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "Rani Sati Dadi.apk"
+            outputFileName = "Rani_Sati_Dadi.apk"
         }
     }
 
