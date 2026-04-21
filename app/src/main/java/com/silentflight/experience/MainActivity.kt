@@ -109,8 +109,9 @@ class MainActivity : AppCompatActivity() {
         
         // Setup a simple debug log view if it doesn't exist in XML yet
         debugLogText = findViewById(R.id.debugLogText)
+        debugLogText.setBackgroundColor(0x33FF0000.toInt()) // Light Red background to make it visible!
 
-        addLog("App Started. Waiting for IST sync...")
+        addLog("App V2.0 Started. Waiting for IST sync...")
 
         setupEarphones()
         setupMediaPlayer()
@@ -182,7 +183,18 @@ class MainActivity : AppCompatActivity() {
                                 schedulePlayback()
                             }
                         } else {
+                            // Even if time hasn't changed, if we are desynced, this check ensures we stay on track
                             addLog("Check: OK (No change)")
+                            if (mediaPlayer?.isPlaying == true) {
+                                val now = System.currentTimeMillis()
+                                val expectedPos = (now - currentStartTime).toInt()
+                                val actualPos = mediaPlayer?.currentPosition ?: 0
+                                // If we are off by more than 2 seconds, nudge it back
+                                if (Math.abs(expectedPos - actualPos) > 2000 && currentStartTime < now) {
+                                    addLog("Nudging: Audio was off by ${expectedPos - actualPos}ms")
+                                    mediaPlayer?.seekTo(expectedPos)
+                                }
+                            }
                         }
                     }
                 } catch (e: Exception) {
