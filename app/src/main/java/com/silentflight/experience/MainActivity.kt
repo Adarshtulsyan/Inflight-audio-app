@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
     private var fetchRunnable: Runnable? = null
 
     // Replace with your raw config URL (e.g., GitHub raw)
-    private val configUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/config.json"
+    private val configUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
 
     private var currentStartTime: Long = 0L
 

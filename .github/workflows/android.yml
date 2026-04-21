@@ -10,6 +10,8 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -41,5 +43,6 @@ jobs:
         name: Latest Build
         files: app/build/outputs/apk/debug/*.apk
         prerelease: true
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
