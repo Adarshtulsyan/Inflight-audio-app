@@ -141,9 +141,22 @@ class MainActivity : AppCompatActivity() {
                         val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
                         val date = sdf.parse(timeStr)
                         date?.let { d ->
+                            val oldStartTime = currentStartTime
                             currentStartTime = d.time
                             prefs.edit().putLong("start_time", currentStartTime).apply()
                             Log.d("Config", "Updated start time: $timeStr")
+                            
+                            // If the new time is different and we are currently in a countdown, 
+                            // restart the countdown with the new time.
+                            if (oldStartTime != currentStartTime) {
+                                handler.post {
+                                    if (countdownRunnable != null && (mediaPlayer == null || !mediaPlayer!!.isPlaying)) {
+                                        // Clear old countdown and start new one
+                                        countdownRunnable?.let { handler.removeCallbacks(it) }
+                                        schedulePlayback()
+                                    }
+                                }
+                            }
                         }
                     } catch (e: Exception) {
                         Log.e("Config", "Error parsing JSON", e)
@@ -199,6 +212,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun schedulePlayback() {
+        // Clear any existing countdown first
+        countdownRunnable?.let { handler.removeCallbacks(it) }
+
         val now = System.currentTimeMillis()
         val delay = currentStartTime - now
 
