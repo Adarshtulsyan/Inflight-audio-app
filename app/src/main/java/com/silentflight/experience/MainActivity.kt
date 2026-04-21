@@ -145,11 +145,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchRemoteConfig() {
-        val urlWithCacheBuster = "$configUrl?t=${System.currentTimeMillis()}"
+        val timestamp = System.currentTimeMillis()
+        val urlWithCacheBuster = "$configUrl?cb=$timestamp"
+        
         val request = Request.Builder()
             .url(urlWithCacheBuster)
-            .addHeader("Cache-Control", "no-cache")
+            .header("Cache-Control", "no-cache, no-store, must-revalidate")
+            .header("Pragma", "no-cache")
+            .header("Expires", "0")
             .build()
+
+        addLog("Fetching: ...${timestamp.toString().takeLast(5)}")
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -157,9 +163,12 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onResponse(call: Call, response: Response) {
+                val fromCache = response.cacheResponse != null
+                val fromNetwork = response.networkResponse != null
                 val body = response.body?.string()
+                
                 if (!response.isSuccessful || body == null) {
-                    addLog("Server Error: ${response.code}")
+                    addLog("Error ${response.code}: $fromCache/$fromNetwork")
                     return
                 }
 
@@ -183,8 +192,7 @@ class MainActivity : AppCompatActivity() {
                                 schedulePlayback()
                             }
                         } else {
-                            // Show EXACTLY what the app sees on GitHub
-                            addLog("Check: Server=$timeStr")
+                            addLog("Data: $timeStr (Net:$fromNetwork)")
                             
                             if (mediaPlayer?.isPlaying == true) {
                                 val now = System.currentTimeMillis()
