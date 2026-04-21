@@ -112,7 +112,7 @@ class MainActivity : AppCompatActivity() {
         debugLogText.setBackgroundColor(0xFF000000.toInt()) // Solid Black background
         debugLogText.setTextColor(0xFF00FF00.toInt())       // Bright Green text (Matrix style)
 
-        addLog("V2.5 READY. Watching GitHub...")
+        addLog("V2.6 READY. Random Buster Active.")
 
         setupEarphones()
         setupMediaPlayer()
@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         val pollTask = object : Runnable {
             override fun run() {
                 fetchRemoteConfig()
-                handler.postDelayed(this, 15 * 1000) // Poll every 15 seconds for testing
+                handler.postDelayed(this, 10 * 1000) // Poll every 10 seconds
             }
         }
         fetchRunnable = pollTask
@@ -146,12 +146,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun fetchRemoteConfig() {
         val timestamp = System.currentTimeMillis()
-        // Random key to bypass even more aggressive caches
-        val randomKey = (1000..9999).random()
-        val urlWithCacheBuster = "$configUrl?cb$randomKey=$timestamp"
+        val randomKey = "rq" + (1000..9999).random()
+        val urlWithCacheBuster = "$configUrl?$randomKey=$timestamp"
         
         val request = Request.Builder()
             .url(urlWithCacheBuster)
+            .cacheControl(okhttp3.CacheControl.FORCE_NETWORK)
             .header("Cache-Control", "no-cache, no-store, must-revalidate")
             .header("Pragma", "no-cache")
             .build()
@@ -163,9 +163,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
-                val headers = response.headers
-                // Check if GitHub says it's from a cache
-                val xCache = headers["X-Cache"] ?: "none"
+                val xCache = response.header("X-Cache") ?: "none"
                 
                 if (!response.isSuccessful) {
                     addLog("Err ${response.code} ($xCache)")
@@ -175,24 +173,21 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val json = JSONObject(rawBody)
                     val timeStr = json.getString("startTime")
-                    
                     val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
                     sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                     val date = sdf.parse(timeStr) ?: return
                     val newTime = date.time
 
                     handler.post {
-                        val oldTime = currentStartTime
-                        if (oldTime != newTime) {
+                        if (currentStartTime != newTime) {
                             addLog("NEW! $timeStr")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
-                            
                             if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
                                 schedulePlayback()
                             }
                         } else {
-                            addLog("OK: $timeStr ($xCache)")
+                            addLog("OK: ${timeStr.takeLast(8)} ($xCache)")
                         }
                     }
                 } catch (e: Exception) {
