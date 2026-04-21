@@ -4,6 +4,7 @@
     <application
         android:allowBackup="true"
         android:icon="@drawable/dadi"
+        android:label="@string/app_name"
         android:roundIcon="@drawable/dadi"
         android:supportsRtl="true"
         android:theme="@style/Theme.SilentFlight">

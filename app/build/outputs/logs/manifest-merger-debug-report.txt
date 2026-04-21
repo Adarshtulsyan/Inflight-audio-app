@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-23:12
-INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-23:12
-INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-23:12
-INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-23:12
+ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-24:12
+INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-24:12
+INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-24:12
+INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:1-24:12
 MERGED from [com.google.android.material:material:1.11.0] /Users/I584140/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.appcompat:appcompat-resources:1.6.1] /Users/I584140/.gradle/caches/transforms-3/3eaec48e790365cb3ddece1de5aab10f/transformed/jetified-appcompat-resources-1.6.1/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /Users/I584140/.gradle/caches/transforms-3/616b5c1498ee4e9e3233a37f549ea7f5/transformed/constraintlayout-2.0.1/AndroidManifest.xml:2:1-11:12
@@ -54,8 +54,8 @@ MERGED from [androidx.print:print:1.0.0] /Users/I584140/.gradle/caches/transform
 	xmlns:android
 		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:2:11-69
 application
-ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:4:5-21:19
-INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:4:5-21:19
+ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:4:5-22:19
+INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:4:5-22:19
 MERGED from [com.google.android.material:material:1.11.0] /Users/I584140/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.11.0] /Users/I584140/.gradle/caches/transforms-3/84114cdc67145947aeae5617e585aba8/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /Users/I584140/.gradle/caches/transforms-3/616b5c1498ee4e9e3233a37f549ea7f5/transformed/constraintlayout-2.0.1/AndroidManifest.xml:9:5-20
@@ -77,33 +77,35 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/I584140/.gradle/cach
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] /Users/I584140/.gradle/caches/transforms-3/4dde0fce54f6341b6da19770f76a2130/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:8:9-35
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:9:9-35
+	android:label
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:7:9-41
 	android:roundIcon
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:7:9-43
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:8:9-43
 	android:icon
 		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:6:9-38
 	android:allowBackup
 		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:5:9-35
 	android:theme
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:9:9-50
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:10:9-50
 activity#com.silentflight.experience.MainActivity
-ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:11:9-19:20
+ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:12:9-20:20
 	android:screenOrientation
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:14:13-49
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:15:13-49
 	android:exported
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:13:13-36
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:14:13-36
 	android:name
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:12:13-41
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:13:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:15:13-18:29
+ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:16:13-19:29
 action#android.intent.action.MAIN
-ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:16:17-69
+ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:17:17-69
 	android:name
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:16:25-66
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:17:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:17:17-77
+ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:18:17-77
 	android:name
-		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:17:27-74
+		ADDED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml:18:27-74
 uses-sdk
 INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /Users/I584140/Desktop/Personal/inflight-audio-/android-app/app/src/main/AndroidManifest.xml
