@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Silent Flight</string>
+    <string name="title">Silent Flight</string>
+    <string name="subtitle">Experience</string>
+    <string name="earphone_checking">Checking audio output…</string>
+    <string name="earphone_prompt">Plug in earphones or connect Bluetooth, then tap below</string>
+    <string name="earphone_confirmed">Earphones confirmed</string>
+    <string name="confirm_earphones">I have earphones in</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="checking_audio">Checking audio…</string>
+    <string name="ready">Ready</string>
+    <string name="stopped">Stopped</string>
+    <string name="finished">Finished</string>
+    <string name="audio_unavailable">Audio unavailable</string>
+    <string name="audio_unavailable_msg">Audio file not found. Copy audio.mp3 to app/src/main/res/raw/ and rebuild the app.</string>
+</resources>
