@@ -112,7 +112,7 @@ class MainActivity : AppCompatActivity() {
         debugLogText.setBackgroundColor(0xFF000000.toInt()) // Solid Black background
         debugLogText.setTextColor(0xFF00FF00.toInt())       // Bright Green text (Matrix style)
 
-        addLog("V2.3 READY. Waiting for sync...")
+        addLog("V2.5 READY. Watching GitHub...")
 
         setupEarphones()
         setupMediaPlayer()
@@ -145,13 +145,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchRemoteConfig() {
-        // We will try to fetch with a very aggressive cache buster
         val timestamp = System.currentTimeMillis()
-        val urlWithCacheBuster = "$configUrl?nocache=$timestamp"
+        // Random key to bypass even more aggressive caches
+        val randomKey = (1000..9999).random()
+        val urlWithCacheBuster = "$configUrl?cb$randomKey=$timestamp"
         
         val request = Request.Builder()
             .url(urlWithCacheBuster)
             .header("Cache-Control", "no-cache, no-store, must-revalidate")
+            .header("Pragma", "no-cache")
             .build()
 
         client.newCall(request).enqueue(object : Callback {
@@ -160,18 +162,20 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
+                val rawBody = response.body?.string() ?: ""
+                val headers = response.headers
+                // Check if GitHub says it's from a cache
+                val xCache = headers["X-Cache"] ?: "none"
                 
-                if (!response.isSuccessful || body == null) {
-                    addLog("Error ${response.code}")
+                if (!response.isSuccessful) {
+                    addLog("Err ${response.code} ($xCache)")
                     return
                 }
 
                 try {
-                    val json = JSONObject(body)
+                    val json = JSONObject(rawBody)
                     val timeStr = json.getString("startTime")
                     
-                    // Critical: Parse as IST
                     val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
                     sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                     val date = sdf.parse(timeStr) ?: return
@@ -179,23 +183,20 @@ class MainActivity : AppCompatActivity() {
 
                     handler.post {
                         val oldTime = currentStartTime
-                        // Only log and update if it's actually different to reduce spam
                         if (oldTime != newTime) {
-                            addLog("FOUND NEW TIME: $timeStr")
+                            addLog("NEW! $timeStr")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             
                             if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
-                                addLog("Jumping to $timeStr")
                                 schedulePlayback()
                             }
                         } else {
-                            // This confirms the app is successfully reaching the file
-                            addLog("Live: $timeStr")
+                            addLog("OK: $timeStr ($xCache)")
                         }
                     }
                 } catch (e: Exception) {
-                    addLog("JSON Error: ${e.message}")
+                    addLog("JSON Err: ${e.message}")
                 }
             }
         })
