@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
         val pollTask = object : Runnable {
             override fun run() {
                 fetchRemoteConfig()
-                handler.postDelayed(this, 5 * 60 * 1000) // 5 minutes
+                handler.postDelayed(this, 2 * 60 * 1000) // 2 minutes
             }
         }
         fetchRunnable = pollTask
