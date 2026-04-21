@@ -109,9 +109,10 @@ class MainActivity : AppCompatActivity() {
         
         // Setup a simple debug log view if it doesn't exist in XML yet
         debugLogText = findViewById(R.id.debugLogText)
-        debugLogText.setBackgroundColor(0x33FF0000.toInt()) // Light Red background to make it visible!
+        debugLogText.setBackgroundColor(0xFF000000.toInt()) // Solid Black background
+        debugLogText.setTextColor(0xFF00FF00.toInt())       // Bright Green text (Matrix style)
 
-        addLog("App V2.0 Started. Waiting for IST sync...")
+        addLog("V2.1 READY. Waiting for sync...")
 
         setupEarphones()
         setupMediaPlayer()
@@ -136,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         val pollTask = object : Runnable {
             override fun run() {
                 fetchRemoteConfig()
-                handler.postDelayed(this, 30 * 1000) // Poll every 30 seconds for testing
+                handler.postDelayed(this, 15 * 1000) // Poll every 15 seconds for testing
             }
         }
         fetchRunnable = pollTask
@@ -173,25 +174,24 @@ class MainActivity : AppCompatActivity() {
                     handler.post {
                         val oldTime = currentStartTime
                         if (oldTime != newTime) {
-                            addLog("NEW TIME: $timeStr")
+                            addLog("SYNC! New: $timeStr")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             
-                            // FORCE SYNC if the user has started the session
                             if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
                                 addLog("Jumping to new time...")
                                 schedulePlayback()
                             }
                         } else {
-                            // Even if time hasn't changed, if we are desynced, this check ensures we stay on track
-                            addLog("Check: OK (No change)")
+                            // Show EXACTLY what the app sees on GitHub
+                            addLog("Check: Server=$timeStr")
+                            
                             if (mediaPlayer?.isPlaying == true) {
                                 val now = System.currentTimeMillis()
                                 val expectedPos = (now - currentStartTime).toInt()
                                 val actualPos = mediaPlayer?.currentPosition ?: 0
-                                // If we are off by more than 2 seconds, nudge it back
                                 if (Math.abs(expectedPos - actualPos) > 2000 && currentStartTime < now) {
-                                    addLog("Nudging: Audio was off by ${expectedPos - actualPos}ms")
+                                    addLog("Nudging sync...")
                                     mediaPlayer?.seekTo(expectedPos)
                                 }
                             }
