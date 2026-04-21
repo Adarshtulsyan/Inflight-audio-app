@@ -125,7 +125,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchRemoteConfig() {
-        val request = Request.Builder().url(configUrl).build()
+        // Add a timestamp to bypass GitHub's cache
+        val urlWithCacheBuster = "$configUrl?t=${System.currentTimeMillis()}"
+        val request = Request.Builder().url(urlWithCacheBuster).build()
+
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("Config", "Failed to fetch config", e)
