@@ -240,6 +240,19 @@
 
         </LinearLayout>
 
+        <!-- Debug Log Console -->
+        <TextView
+            android:id="@+id/debugLogText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:background="#1A000000"
+            android:fontFamily="monospace"
+            android:padding="8dp"
+            android:text="System logs will appear here..."
+            android:textColor="#80000000"
+            android:textSize="10sp" />
+
     </LinearLayout>
 
 </ScrollView>

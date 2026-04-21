@@ -14,6 +14,7 @@ import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -45,9 +46,9 @@ class MainActivity : AppCompatActivity() {
     private var playbackRunnable: Runnable? = null
     private var fetchRunnable: Runnable? = null
 
-    // Replace with your raw config URL (e.g., GitHub raw)
     private val configUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
 
+    @Volatile
     private var currentStartTime: Long = 0L
 
     private val defaultStartTime: Long by lazy {
@@ -70,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var currentTimeText: TextView
     private lateinit var remainingTimeText: TextView
     private lateinit var downloadPrompt: View
+    private lateinit var debugLogText: TextView
 
     private val headsetReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -89,7 +91,6 @@ class MainActivity : AppCompatActivity() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
 
-        // Load persisted time or use default
         currentStartTime = prefs.getLong("start_time", defaultStartTime)
 
         earphoneRow     = findViewById(R.id.earphoneRow)
@@ -105,6 +106,11 @@ class MainActivity : AppCompatActivity() {
         currentTimeText = findViewById(R.id.currentTimeText)
         remainingTimeText = findViewById(R.id.remainingTimeText)
         downloadPrompt  = findViewById(R.id.downloadPrompt)
+        
+        // Setup a simple debug log view if it doesn't exist in XML yet
+        debugLogText = findViewById(R.id.debugLogText)
+
+        addLog("App Started. Waiting for IST sync...")
 
         setupEarphones()
         setupMediaPlayer()
@@ -116,11 +122,20 @@ class MainActivity : AppCompatActivity() {
         startConfigPolling()
     }
 
+    private fun addLog(message: String) {
+        handler.post {
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(java.util.Date())
+            val newLog = "[$time] $message\n${debugLogText.text}"
+            debugLogText.text = newLog.take(500) // Keep last 500 chars
+            Log.d("InflightApp", message)
+        }
+    }
+
     private fun startConfigPolling() {
         val pollTask = object : Runnable {
             override fun run() {
                 fetchRemoteConfig()
-                handler.postDelayed(this, 2 * 60 * 1000) // 2 minutes
+                handler.postDelayed(this, 30 * 1000) // Poll every 30 seconds for testing
             }
         }
         fetchRunnable = pollTask
@@ -128,48 +143,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchRemoteConfig() {
-        // Add a timestamp to bypass GitHub's cache
         val urlWithCacheBuster = "$configUrl?t=${System.currentTimeMillis()}"
-        val request = Request.Builder().url(urlWithCacheBuster).build()
+        val request = Request.Builder()
+            .url(urlWithCacheBuster)
+            .addHeader("Cache-Control", "no-cache")
+            .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("Config", "Failed to fetch config", e)
+                addLog("Net Error: ${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
-                response.use {
-                    if (!it.isSuccessful) return
-                    val body = it.body?.string() ?: return
-                    try {
-                        val json = JSONObject(body)
-                        val timeStr = json.getString("startTime")
-                        // Use IST for India-specific sync
-                        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                        sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-                        val date = sdf.parse(timeStr)
-                        
-                        date?.let { d ->
-                            val oldStartTime = currentStartTime
-                            currentStartTime = d.time
-                            prefs.edit().putLong("start_time", currentStartTime).apply()
+                val body = response.body?.string()
+                if (!response.isSuccessful || body == null) {
+                    addLog("Server Error: ${response.code}")
+                    return
+                }
+
+                try {
+                    val json = JSONObject(body)
+                    val timeStr = json.getString("startTime")
+                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+                    val date = sdf.parse(timeStr) ?: return
+                    val newTime = date.time
+
+                    handler.post {
+                        val oldTime = currentStartTime
+                        if (oldTime != newTime) {
+                            addLog("NEW TIME: $timeStr")
+                            currentStartTime = newTime
+                            prefs.edit().putLong("start_time", newTime).apply()
                             
-                            handler.post {
-                                Log.d("Config", "Successfully parsed IST time: $timeStr")
-                                // If the new time is different, re-sync
-                                if (oldStartTime != currentStartTime) {
-                                    Toast.makeText(this@MainActivity, "New start time synced: $timeStr IST", Toast.LENGTH_SHORT).show()
-                                    
-                                    // Re-sync if we are currently active (counting down or playing)
-                                    if (countdownRunnable != null || (mediaPlayer != null && mediaPlayer!!.isPlaying) || statusText.text.contains("sync")) {
-                                        schedulePlayback()
-                                    }
-                                }
+                            // FORCE SYNC if the user has started the session
+                            if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
+                                addLog("Jumping to new time...")
+                                schedulePlayback()
                             }
+                        } else {
+                            addLog("Check: OK (No change)")
                         }
-                    } catch (e: Exception) {
-                        Log.e("Config", "Error parsing JSON", e)
                     }
+                } catch (e: Exception) {
+                    addLog("Parse Error: ${e.message}")
                 }
             }
         })
@@ -212,30 +229,30 @@ class MainActivity : AppCompatActivity() {
         startBtn.setOnClickListener {
             startBtn.isEnabled = false
             stopBtn.isEnabled = true
+            addLog("User started playback manually")
             schedulePlayback()
         }
 
         stopBtn.setOnClickListener {
+            addLog("User stopped playback")
             stopPlayback()
         }
     }
 
     private fun schedulePlayback() {
-        // Clear any existing countdown, progress updates, and pending playback starts
         countdownRunnable?.let { handler.removeCallbacks(it) }
         progressRunnable?.let { handler.removeCallbacks(it) }
         playbackRunnable?.let { handler.removeCallbacks(it) }
         
-        // If playing, pause first to reset cleanly
-        mediaPlayer?.let {
-            if (it.isPlaying) it.pause()
-        }
+        try {
+            mediaPlayer?.let { if (it.isPlaying) it.pause() }
+        } catch (e: Exception) { }
 
         val now = System.currentTimeMillis()
         val delay = currentStartTime - now
 
         if (delay > 0) {
-            var remaining = (delay / 1000).toInt()
+            var remaining = (delay / 1000)
             val tick = object : Runnable {
                 override fun run() {
                     statusText.text = "⏳ Starts in ${remaining}s"
@@ -262,13 +279,17 @@ class MainActivity : AppCompatActivity() {
             playbackRunnable = startTask
             handler.postDelayed(startTask, delay)
         } else {
-            val msLate = (-delay).toInt().coerceAtLeast(0)
-            mediaPlayer?.let {
-                val duration = it.duration
-                if (msLate > duration && duration > 0) {
-                    statusText.text = "🏁 Session has finished"
-                    stopPlayback()
-                } else {
+            val msLateLong = -delay
+            val duration = mediaPlayer?.duration ?: 0
+            
+            if (duration > 0 && msLateLong > duration) {
+                statusText.text = "🏁 Session has finished"
+                addLog("Sync error: Time is beyond audio length")
+                stopPlayback()
+            } else {
+                val msLate = msLateLong.toInt().coerceAtLeast(0)
+                addLog("Syncing: Seeking to $msLate ms")
+                mediaPlayer?.let {
                     it.seekTo(msLate)
                     it.start()
                     statusText.text = "▶️ Joined in sync"
@@ -298,7 +319,6 @@ class MainActivity : AppCompatActivity() {
                     currentTimeText.text = formatTime(currentMs / 1000L)
                     remainingTimeText.text = "-${formatTime((durationMs - currentMs) / 1000L)}"
                 }
-
                 handler.postDelayed(this, 500)
             }
         }
@@ -315,8 +335,10 @@ class MainActivity : AppCompatActivity() {
         playbackRunnable = null
 
         mediaPlayer?.apply {
-            if (isPlaying) pause()
-            seekTo(0)
+            try {
+                if (isPlaying) pause()
+                seekTo(0)
+            } catch (e: Exception) {}
         }
 
         statusText.text = getString(R.string.stopped)
@@ -326,6 +348,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPlaybackComplete() {
+        addLog("Playback finished naturally")
         progressRunnable?.let { handler.removeCallbacks(it) }
         progressRunnable = null
         statusText.text = getString(R.string.finished)
