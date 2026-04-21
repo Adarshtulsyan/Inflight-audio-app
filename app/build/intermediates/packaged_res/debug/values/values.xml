@@ -14,7 +14,7 @@
     <color name="text_status">#7a6a5a</color>
     <color name="text_subtitle">#8a7060</color>
     <color name="text_time">#5a4a3a</color>
-    <string name="app_name">Silent Flight</string>
+    <string name="app_name">Dadi Mangal Path</string>
     <string name="audio_unavailable">Audio unavailable</string>
     <string name="audio_unavailable_msg">Audio file not found. Copy audio.mp3 to app/src/main/res/raw/ and rebuild the app.</string>
     <string name="checking_audio">Checking audio…</string>
@@ -28,7 +28,7 @@
     <string name="stop">Stop</string>
     <string name="stopped">Stopped</string>
     <string name="subtitle">Experience</string>
-    <string name="title">Silent Flight</string>
+    <string name="title">Dadi Mangal Path</string>
     <style name="Theme.SilentFlight" parent="Theme.MaterialComponents.NoActionBar">
         <item name="colorPrimary">@color/gold</item>
         <item name="colorPrimaryVariant">#c8702a</item>
