@@ -146,13 +146,15 @@ class MainActivity : AppCompatActivity() {
                             prefs.edit().putLong("start_time", currentStartTime).apply()
                             Log.d("Config", "Updated start time: $timeStr")
                             
-                            // If the new time is different and we are currently in a countdown, 
-                            // restart the countdown with the new time.
+                            // If the new time is different, re-sync the playback or countdown
                             if (oldStartTime != currentStartTime) {
                                 handler.post {
-                                    if (countdownRunnable != null && (mediaPlayer == null || !mediaPlayer!!.isPlaying)) {
-                                        // Clear old countdown and start new one
-                                        countdownRunnable?.let { handler.removeCallbacks(it) }
+                                    // Check if we are currently "active" (either counting down or playing)
+                                    val isCountingDown = countdownRunnable != null
+                                    val isPlaying = mediaPlayer?.isPlaying == true
+                                    
+                                    if (isCountingDown || isPlaying) {
+                                        Log.d("Config", "Re-syncing playback to new start time")
                                         schedulePlayback()
                                     }
                                 }
