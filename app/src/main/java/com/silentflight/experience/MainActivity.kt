@@ -112,7 +112,7 @@ class MainActivity : AppCompatActivity() {
         debugLogText.setBackgroundColor(0xFF000000.toInt()) // Solid Black background
         debugLogText.setTextColor(0xFF00FF00.toInt())       // Bright Green text (Matrix style)
 
-        addLog("V2.1 READY. Waiting for sync...")
+        addLog("V2.3 READY. Waiting for sync...")
 
         setupEarphones()
         setupMediaPlayer()
@@ -145,17 +145,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchRemoteConfig() {
+        // We will try to fetch with a very aggressive cache buster
         val timestamp = System.currentTimeMillis()
-        val urlWithCacheBuster = "$configUrl?cb=$timestamp"
+        val urlWithCacheBuster = "$configUrl?nocache=$timestamp"
         
         val request = Request.Builder()
             .url(urlWithCacheBuster)
             .header("Cache-Control", "no-cache, no-store, must-revalidate")
-            .header("Pragma", "no-cache")
-            .header("Expires", "0")
             .build()
-
-        addLog("Fetching: ...${timestamp.toString().takeLast(5)}")
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -163,18 +160,18 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val fromCache = response.cacheResponse != null
-                val fromNetwork = response.networkResponse != null
                 val body = response.body?.string()
                 
                 if (!response.isSuccessful || body == null) {
-                    addLog("Error ${response.code}: $fromCache/$fromNetwork")
+                    addLog("Error ${response.code}")
                     return
                 }
 
                 try {
                     val json = JSONObject(body)
                     val timeStr = json.getString("startTime")
+                    
+                    // Critical: Parse as IST
                     val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
                     sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                     val date = sdf.parse(timeStr) ?: return
@@ -182,31 +179,23 @@ class MainActivity : AppCompatActivity() {
 
                     handler.post {
                         val oldTime = currentStartTime
+                        // Only log and update if it's actually different to reduce spam
                         if (oldTime != newTime) {
-                            addLog("SYNC! New: $timeStr")
+                            addLog("FOUND NEW TIME: $timeStr")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             
                             if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
-                                addLog("Jumping to new time...")
+                                addLog("Jumping to $timeStr")
                                 schedulePlayback()
                             }
                         } else {
-                            addLog("Data: $timeStr (Net:$fromNetwork)")
-                            
-                            if (mediaPlayer?.isPlaying == true) {
-                                val now = System.currentTimeMillis()
-                                val expectedPos = (now - currentStartTime).toInt()
-                                val actualPos = mediaPlayer?.currentPosition ?: 0
-                                if (Math.abs(expectedPos - actualPos) > 2000 && currentStartTime < now) {
-                                    addLog("Nudging sync...")
-                                    mediaPlayer?.seekTo(expectedPos)
-                                }
-                            }
+                            // This confirms the app is successfully reaching the file
+                            addLog("Live: $timeStr")
                         }
                     }
                 } catch (e: Exception) {
-                    addLog("Parse Error: ${e.message}")
+                    addLog("JSON Error: ${e.message}")
                 }
             }
         })
