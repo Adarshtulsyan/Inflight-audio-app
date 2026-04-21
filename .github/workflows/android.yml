@@ -8,7 +8,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -35,14 +34,16 @@ jobs:
         name: RaniSatiDadi-APK
         path: app/build/outputs/apk/debug/*.apk
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
+    - name: Create or Update Release
+      uses: ncipollo/release-action@v1
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       with:
-        tag_name: latest
+        artifacts: "app/build/outputs/apk/debug/*.apk"
+        tag: latest
         name: Latest Build
-        files: app/build/outputs/apk/debug/*.apk
+        allowUpdates: true
+        replacesArtifacts: true
+        makeLatest: true
         prerelease: true
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        body: "Direct download link for the latest APK build."
+        token: ${{ secrets.GITHUB_TOKEN }}
