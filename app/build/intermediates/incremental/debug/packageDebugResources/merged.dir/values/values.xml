@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#0a0a0a</color>
+    <color name="btn_confirm_text">#b08060</color>
+    <color name="btn_stop_text">#8a6040</color>
+    <color name="divider">#3a2a1a</color>
+    <color name="dot_confirmed">#5a9a4a</color>
+    <color name="dot_default">#3a2a1a</color>
+    <color name="dot_speakers">#c0522a</color>
+    <color name="earphone_text_confirmed">#7ab06a</color>
+    <color name="gold">#e8c97a</color>
+    <color name="progress_track">#2a1a0a</color>
+    <color name="text_earphone">#6a5a4a</color>
+    <color name="text_status">#7a6a5a</color>
+    <color name="text_subtitle">#8a7060</color>
+    <color name="text_time">#5a4a3a</color>
+    <string name="app_name">Dadi Mangal Path</string>
+    <string name="audio_unavailable">Audio unavailable</string>
+    <string name="audio_unavailable_msg">Audio file not found. Copy audio.mp3 to app/src/main/res/raw/ and rebuild the app.</string>
+    <string name="checking_audio">Checking audio…</string>
+    <string name="confirm_earphones">I have earphones in</string>
+    <string name="earphone_checking">Checking audio output…</string>
+    <string name="earphone_confirmed">Earphones confirmed</string>
+    <string name="earphone_prompt">Plug in earphones or connect Bluetooth, then tap below</string>
+    <string name="finished">Finished</string>
+    <string name="ready">Ready</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="stopped">Stopped</string>
+    <string name="subtitle">Experience</string>
+    <string name="title">Dadi Mangal Path</string>
+    <style name="Theme.SilentFlight" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/gold</item>
+        <item name="colorPrimaryVariant">#c8702a</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+    </style>
+</resources>

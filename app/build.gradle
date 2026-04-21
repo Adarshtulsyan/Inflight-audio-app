@@ -11,8 +11,8 @@ android {
         applicationId "com.silentflight.experience"
         minSdk 26
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
+        versionCode 1
+        versionName "1.0"
     }
 
     buildTypes {
@@ -21,7 +21,12 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            archivesBaseName = "RaniSatiDadi"
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "Rani Sati Dadi.apk"
         }
     }
 
