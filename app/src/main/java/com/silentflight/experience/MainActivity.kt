@@ -379,11 +379,16 @@ class MainActivity : AppCompatActivity() {
         val tick = object : Runnable {
             override fun run() {
                 val player = mediaPlayer ?: return
-                if (!player.isPlaying) return
-
-                val currentMs = player.currentPosition
                 val durationMs = player.duration
-                if (durationMs > 0) {
+                val currentMs = player.currentPosition
+
+                // Robust completion check: if player stopped or reached the end
+                if (!player.isPlaying && currentMs >= (durationMs - 1000).coerceAtLeast(0)) {
+                    onPlaybackComplete()
+                    return
+                }
+
+                if (player.isPlaying && durationMs > 0) {
                     val trackWidth = progressTrack.width
                     if (trackWidth > 0) {
                         val fillWidth = (trackWidth.toLong() * currentMs / durationMs).toInt()
@@ -391,10 +396,15 @@ class MainActivity : AppCompatActivity() {
                         params.width = fillWidth
                         progressFill.layoutParams = params
                     }
+                    
+                    val remainingMs = (durationMs - currentMs).coerceAtLeast(0)
                     currentTimeText.text = formatTime(currentMs / 1000L)
-                    remainingTimeText.text = "-${formatTime((durationMs - currentMs) / 1000L)}"
+                    remainingTimeText.text = "-${formatTime(remainingMs / 1000L)}"
                 }
-                handler.postDelayed(this, 1000)
+                
+                if (isPlaybackStartedByUser) {
+                    handler.postDelayed(this, 1000)
+                }
             }
         }
         progressRunnable = tick
@@ -417,6 +427,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPlaybackComplete() {
+        isPlaybackStartedByUser = false
         clearTasks()
         statusText.text = getString(R.string.finished)
         
