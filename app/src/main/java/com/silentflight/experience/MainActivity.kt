@@ -12,6 +12,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -57,6 +59,10 @@ class MainActivity : AppCompatActivity() {
         }.timeInMillis
     }
 
+    private lateinit var welcomeScreen: View
+    private lateinit var mainContent: View
+    private lateinit var enterCabinBtn: Button
+    
     private lateinit var earphoneRow: View
     private lateinit var playbackControls: View
     private lateinit var earphoneText: TextView
@@ -90,9 +96,12 @@ class MainActivity : AppCompatActivity() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         
-        // Fix: If stored time is older than our current target, reset it
         val storedTime = prefs.getLong("start_time", 0L)
         currentStartTime = if (storedTime < defaultStartTime) defaultStartTime else storedTime
+
+        welcomeScreen    = findViewById(R.id.welcomeScreen)
+        mainContent      = findViewById(R.id.mainContent)
+        enterCabinBtn    = findViewById(R.id.enterCabinBtn)
 
         earphoneRow      = findViewById(R.id.earphoneRow)
         playbackControls = findViewById(R.id.playbackControls)
@@ -118,6 +127,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupInitialState() {
+        welcomeScreen.visibility = View.VISIBLE
+        mainContent.visibility = View.GONE
+        
         earphoneRow.visibility = View.VISIBLE
         playbackControls.visibility = View.GONE
         playerLayout.visibility = View.GONE
@@ -144,6 +156,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        enterCabinBtn.setOnClickListener {
+            transitionToMain()
+        }
+
         confirmBtn.setOnClickListener {
             earphonesConfirmed = true
             earphoneRow.visibility = View.GONE
@@ -162,6 +178,23 @@ class MainActivity : AppCompatActivity() {
             isPlaybackStartedByUser = false
             stopPlayback()
         }
+    }
+
+    private fun transitionToMain() {
+        val fadeOut = AlphaAnimation(1f, 0f).apply {
+            duration = 800
+            setAnimationListener(object : Animation.AnimationListener {
+                override fun onAnimationStart(animation: Animation?) {}
+                override fun onAnimationRepeat(animation: Animation?) {}
+                override fun onAnimationEnd(animation: Animation?) {
+                    welcomeScreen.visibility = View.GONE
+                    mainContent.visibility = View.VISIBLE
+                    val fadeIn = AlphaAnimation(0f, 1f).apply { duration = 800 }
+                    mainContent.startAnimation(fadeIn)
+                }
+            })
+        }
+        welcomeScreen.startAnimation(fadeOut)
     }
 
     private fun startConfigPolling() {
@@ -243,7 +276,6 @@ class MainActivity : AppCompatActivity() {
         Log.d("InflightSync", "Target: $currentStartTime, Now: $now, Diff: $delay")
 
         if (delay > 0) {
-            // Future start time
             var remainingSecs = (delay / 1000)
             val tick = object : Runnable {
                 override fun run() {
@@ -265,7 +297,6 @@ class MainActivity : AppCompatActivity() {
             playbackRunnable = startTask
             handler.postDelayed(startTask, delay)
         } else {
-            // Past or current start time
             val msLate = -delay 
             val duration = mediaPlayer?.duration?.toLong() ?: 0L
             
