@@ -148,7 +148,6 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val json = JSONObject(rawBody)
                     val sha = json.getString("sha")
-                    if (sha == currentFileSha) return
                     
                     val contentBase64 = json.getString("content").replace("\n", "")
                     val decodedBytes = android.util.Base64.decode(contentBase64, android.util.Base64.DEFAULT)
@@ -161,11 +160,18 @@ class MainActivity : AppCompatActivity() {
                     val newTime = date.time
 
                     handler.post {
+                        val isFirstFetch = currentFileSha.isEmpty()
+                        val shaChanged = sha != currentFileSha
                         currentFileSha = sha
-                        if (currentStartTime != newTime) {
+
+                        if (isFirstFetch || currentStartTime != newTime) {
+                            Log.d("InflightSync", "Syncing state. FirstFetch=$isFirstFetch, Time=$timeStr")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
-                            if (isPlaybackStartedByUser) {
+                            
+                            // Only force a jump if we are already playing or if the time actually changed
+                            if (isPlaybackStartedByUser && (shaChanged || currentStartTime != newTime)) {
+                                Log.d("InflightSync", "Re-scheduling playback")
                                 schedulePlayback()
                             }
                         }
@@ -212,6 +218,7 @@ class MainActivity : AppCompatActivity() {
             isPlaybackStartedByUser = true
             startBtn.isEnabled = false
             stopBtn.isEnabled = true
+            Log.d("InflightSync", "User started playback. Current StartTime: $currentStartTime")
             schedulePlayback()
         }
 
