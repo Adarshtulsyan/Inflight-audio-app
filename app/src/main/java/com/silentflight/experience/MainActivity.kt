@@ -41,7 +41,6 @@ import java.util.TimeZone
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var audioManager: AudioManager
     private lateinit var connectivityManager: ConnectivityManager
     private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -88,12 +87,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var remainingTimeText: TextView
     private lateinit var downloadPrompt: View
 
-    private val headsetReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            updateHeadsetStatus()
-        }
-    }
-
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             handler.post { updateLiveStatus(true) }
@@ -107,7 +100,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         
@@ -137,15 +129,6 @@ class MainActivity : AppCompatActivity() {
         setupMediaPlayer()
         setupButtons()
 
-        // Register Headset Listener
-        val filter = IntentFilter().apply {
-            addAction(AudioManager.ACTION_HEADSET_PLUG)
-            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
-        }
-        @Suppress("DEPRECATION")
-        registerReceiver(headsetReceiver, filter)
-        
         // Register Network Listener
         val networkRequest = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -186,37 +169,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateHeadsetStatus() {
-        val isConnected = isHeadsetConnected()
-        if (isConnected) {
-            confirmBtn.isEnabled = true
-            earphoneText.text = getString(R.string.earphone_confirmed)
-            earphoneText.setTextColor(ContextCompat.getColor(this, R.color.earphone_text_confirmed))
-        } else {
-            confirmBtn.isEnabled = false
-            earphoneText.text = getString(R.string.earphone_prompt)
-            earphoneText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
-            
-            if (isPlaybackStartedByUser) {
-                stopPlayback()
-                earphoneRow.visibility = View.VISIBLE
-                playbackControls.visibility = View.GONE
-                earphonesConfirmed = false
-            }
-        }
+        confirmBtn.isEnabled = true
+        earphoneText.text = getString(R.string.earphone_prompt)
+        earphoneText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
     }
 
     private fun isHeadsetConnected(): Boolean {
-        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        for (device in outputs) {
-            if (device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                device.type == AudioDeviceInfo.TYPE_USB_HEADSET) {
-                return true
-            }
-        }
-        return false
+        return true
     }
 
     private fun setupMediaPlayer() {
@@ -243,23 +202,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         confirmBtn.setOnClickListener {
-            if (isHeadsetConnected()) {
-                earphonesConfirmed = true
-                earphoneRow.visibility = View.GONE
-                playbackControls.visibility = View.VISIBLE
-                startBtn.isEnabled = audioReady
-            }
+            earphonesConfirmed = true
+            earphoneRow.visibility = View.GONE
+            playbackControls.visibility = View.VISIBLE
+            startBtn.isEnabled = audioReady
         }
 
         startBtn.setOnClickListener {
-            if (isHeadsetConnected()) {
-                isPlaybackStartedByUser = true
-                startBtn.isEnabled = false
-                stopBtn.isEnabled = true
-                schedulePlayback()
-            } else {
-                updateHeadsetStatus()
-            }
+            isPlaybackStartedByUser = true
+            startBtn.isEnabled = false
+            stopBtn.isEnabled = true
+            schedulePlayback()
         }
 
         stopBtn.setOnClickListener {
@@ -402,10 +355,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAudio(positionMs: Int) {
-        if (!isHeadsetConnected()) {
-            updateHeadsetStatus()
-            return
-        }
         mediaPlayer?.let {
             try {
                 it.seekTo(positionMs)
@@ -513,7 +462,6 @@ class MainActivity : AppCompatActivity() {
         fetchRunnable?.let { handler.removeCallbacks(it) }
         mediaPlayer?.release()
         mediaPlayer = null
-        try { unregisterReceiver(headsetReceiver) } catch (_: Exception) {}
         try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (_: Exception) {}
     }
 }

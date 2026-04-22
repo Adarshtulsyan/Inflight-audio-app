@@ -14,10 +14,9 @@ A premium, synchronized Android application designed for a collective spiritual 
 *   **Real-time Status Badge:** A dynamic UI indicator that toggles between **LIVE** (Online/Synced) and **OFFLINE** (Disconnected) based on cabin connectivity.
 *   **Multi-Year Accuracy:** Uses IST (Asia/Kolkata) time parsing and `Long` arithmetic to handle precision countdowns over long durations.
 
-### 3. Audio Enforcement (Earphone Only)
-*   **Privacy First:** Audio playback is strictly restricted to headsets. The app detects Wired, Bluetooth (A2DP/SCO), and USB headphones.
-*   **Speaker Blocking:** Playback will not start unless a headset is confirmed.
-*   **Auto-Pause Safety:** If headphones are unplugged during the session, audio immediately stops and the user is redirected to the confirmation screen.
+### 3. Audio Privacy
+*   **Headset Requirement:** To maintain a quiet cabin environment, users are prompted to connect their headsets before commencing the journey.
+*   **Simplified Access:** A manual confirmation step ensures passengers have prepared their audio device, maintaining the "Privacy First" spiritual atmosphere.
 
 ### 4. Smart Inflight Controls
 *   **Dynamic Countdown:** Displays a real-time countdown (Days, Hours, Minutes, Seconds) until the collective journey begins.
