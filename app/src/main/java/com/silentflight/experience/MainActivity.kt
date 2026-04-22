@@ -16,7 +16,6 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -29,10 +28,6 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 
-/**
- * Premium Inflight Audio Experience (V4.0)
- * Cleaned up logs, enhanced UI, and remote-sync ready.
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var audioManager: AudioManager
@@ -81,7 +76,8 @@ class MainActivity : AppCompatActivity() {
             if (intent.action == AudioManager.ACTION_HEADSET_PLUG) {
                 val state = intent.getIntExtra("state", -1)
                 if (state == 1 && !earphonesConfirmed) {
-                    confirmBtn.visibility = View.VISIBLE
+                    confirmBtn.isEnabled = true
+                    earphoneText.text = getString(R.string.earphone_confirmed)
                 }
             }
         }
@@ -95,7 +91,6 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         currentStartTime = prefs.getLong("start_time", defaultStartTime)
 
-        // View Binding
         earphoneRow      = findViewById(R.id.earphoneRow)
         playbackControls = findViewById(R.id.playbackControls)
         earphoneText     = findViewById(R.id.earphoneText)
@@ -110,21 +105,77 @@ class MainActivity : AppCompatActivity() {
         remainingTimeText = findViewById(R.id.remainingTimeText)
         downloadPrompt   = findViewById(R.id.downloadPrompt)
         
-        setupEarphones()
+        setupInitialState()
         setupMediaPlayer()
         setupButtons()
 
         @Suppress("DEPRECATION")
         registerReceiver(headsetReceiver, IntentFilter(AudioManager.ACTION_HEADSET_PLUG))
-
         startConfigPolling()
+    }
+
+    private fun setupInitialState() {
+        earphonesConfirmed = false
+        isPlaybackStartedByUser = false
+        earphoneRow.visibility = View.VISIBLE
+        playbackControls.visibility = View.GONE
+        playerLayout.visibility = View.GONE
+        
+        val isHeadsetIn = audioManager.isWiredHeadsetOn || audioManager.isBluetoothA2dpOn
+        if (isHeadsetIn) {
+            confirmBtn.isEnabled = true
+            earphoneText.text = getString(R.string.earphone_confirmed)
+        } else {
+            confirmBtn.isEnabled = true // Let them confirm anyway if they want, but prompt is there
+            earphoneText.text = getString(R.string.earphone_prompt)
+        }
+    }
+
+    private fun setupMediaPlayer() {
+        try {
+            mediaPlayer = MediaPlayer.create(this, R.raw.audio)
+            if (mediaPlayer != null) {
+                audioReady = true
+                statusText.text = getString(R.string.ready)
+                mediaPlayer?.setOnCompletionListener { onPlaybackComplete() }
+            } else {
+                audioReady = false
+                statusText.text = getString(R.string.audio_unavailable)
+                downloadPrompt.visibility = View.VISIBLE
+            }
+        } catch (e: Exception) {
+            audioReady = false
+            statusText.text = getString(R.string.audio_unavailable)
+        }
+    }
+
+    private fun setupButtons() {
+        confirmBtn.setOnClickListener {
+            earphonesConfirmed = true
+            earphoneRow.visibility = View.GONE
+            playbackControls.visibility = View.VISIBLE
+            startBtn.isEnabled = audioReady
+            stopBtn.isEnabled = false
+        }
+
+        startBtn.setOnClickListener {
+            isPlaybackStartedByUser = true
+            startBtn.isEnabled = false
+            stopBtn.isEnabled = true
+            schedulePlayback()
+        }
+
+        stopBtn.setOnClickListener {
+            isPlaybackStartedByUser = false
+            stopPlayback()
+        }
     }
 
     private fun startConfigPolling() {
         val pollTask = object : Runnable {
             override fun run() {
                 fetchRemoteConfig()
-                handler.postDelayed(this, 10 * 1000) 
+                handler.postDelayed(this, 15000) 
             }
         }
         fetchRunnable = pollTask
@@ -139,7 +190,9 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {}
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("InflightSync", "Fetch failed: ${e.message}")
+            }
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
@@ -164,74 +217,25 @@ class MainActivity : AppCompatActivity() {
                         val shaChanged = sha != currentFileSha
                         currentFileSha = sha
 
-                        if (isFirstFetch || currentStartTime != newTime) {
-                            Log.d("InflightSync", "Syncing state. FirstFetch=$isFirstFetch, Time=$timeStr")
+                        if (isFirstFetch || shaChanged) {
+                            Log.d("InflightSync", "Update: $timeStr (SHA Changed: $shaChanged)")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             
-                            // Only force a jump if we are already playing or if the time actually changed
-                            if (isPlaybackStartedByUser && (shaChanged || currentStartTime != newTime)) {
-                                Log.d("InflightSync", "Re-scheduling playback")
+                            if (isPlaybackStartedByUser && shaChanged) {
                                 schedulePlayback()
                             }
                         }
                     }
-                } catch (e: Exception) {}
+                } catch (e: Exception) {
+                    Log.e("InflightSync", "Parse error: ${e.message}")
+                }
             }
         })
     }
 
-    private fun setupEarphones() {
-        earphoneText.text = getString(R.string.earphone_prompt)
-        confirmBtn.visibility = View.VISIBLE
-        earphoneRow.visibility = View.VISIBLE
-        playbackControls.visibility = View.INVISIBLE
-    }
-
-    private fun setupMediaPlayer() {
-        mediaPlayer = MediaPlayer.create(this, R.raw.audio)
-        if (mediaPlayer != null) {
-            audioReady = true
-            statusText.text = getString(R.string.ready)
-            mediaPlayer?.setOnCompletionListener { onPlaybackComplete() }
-        } else {
-            audioReady = false
-            statusText.text = getString(R.string.audio_unavailable)
-            downloadPrompt.visibility = View.VISIBLE
-        }
-        updateStartButton()
-    }
-
-    private fun updateStartButton() {
-        startBtn.isEnabled = audioReady && earphonesConfirmed
-    }
-
-    private fun setupButtons() {
-        confirmBtn.setOnClickListener {
-            earphonesConfirmed = true
-            earphoneRow.visibility = View.GONE
-            playbackControls.visibility = View.VISIBLE
-            updateStartButton()
-        }
-
-        startBtn.setOnClickListener {
-            isPlaybackStartedByUser = true
-            startBtn.isEnabled = false
-            stopBtn.isEnabled = true
-            Log.d("InflightSync", "User started playback. Current StartTime: $currentStartTime")
-            schedulePlayback()
-        }
-
-        stopBtn.setOnClickListener {
-            isPlaybackStartedByUser = false
-            stopPlayback()
-        }
-    }
-
     private fun schedulePlayback() {
-        countdownRunnable?.let { handler.removeCallbacks(it) }
-        progressRunnable?.let { handler.removeCallbacks(it) }
-        playbackRunnable?.let { handler.removeCallbacks(it) }
+        clearTasks()
         
         try {
             mediaPlayer?.let { 
@@ -240,7 +244,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) { }
 
-        hidePlayer()
+        playerLayout.visibility = View.GONE
 
         val now = System.currentTimeMillis()
         val delay = currentStartTime - now
@@ -262,32 +266,33 @@ class MainActivity : AppCompatActivity() {
             val startTask = Runnable {
                 playbackRunnable = null
                 countdownRunnable?.let { handler.removeCallbacks(it) }
-                mediaPlayer?.let {
-                    it.seekTo(0)
-                    it.start()
-                    statusText.text = "Enjoying Silent Flight"
-                    showPlayer()
-                    startProgressUpdates()
-                }
+                startAudio(0)
             }
             playbackRunnable = startTask
             handler.postDelayed(startTask, delay)
         } else {
-            val msLateLong = -delay
+            val msLate = (-delay).toInt()
             val duration = mediaPlayer?.duration ?: 0
             
-            if (duration > 0 && msLateLong > duration) {
-                statusText.text = "Session has finished"
-                stopPlayback()
+            if (duration > 0 && msLate > duration) {
+                statusText.text = getString(R.string.finished)
+                onPlaybackComplete()
             } else {
-                val msLate = msLateLong.toInt().coerceAtLeast(0)
-                mediaPlayer?.let {
-                    it.seekTo(msLate)
-                    it.start()
-                    statusText.text = "Joined in sync"
-                    showPlayer()
-                    startProgressUpdates()
-                }
+                startAudio(msLate.coerceAtLeast(0))
+            }
+        }
+    }
+
+    private fun startAudio(positionMs: Int) {
+        mediaPlayer?.let {
+            try {
+                it.seekTo(positionMs)
+                it.start()
+                statusText.text = "Enjoying Silent Flight"
+                playerLayout.visibility = View.VISIBLE
+                startProgressUpdates()
+            } catch (e: Exception) {
+                Log.e("InflightSync", "Audio start error: ${e.message}")
             }
         }
     }
@@ -311,7 +316,7 @@ class MainActivity : AppCompatActivity() {
                     currentTimeText.text = formatTime(currentMs / 1000L)
                     remainingTimeText.text = "-${formatTime((durationMs - currentMs) / 1000L)}"
                 }
-                handler.postDelayed(this, 500)
+                handler.postDelayed(this, 1000)
             }
         }
         progressRunnable = tick
@@ -319,42 +324,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopPlayback() {
-        countdownRunnable?.let { handler.removeCallbacks(it) }
-        progressRunnable?.let { handler.removeCallbacks(it) }
-        playbackRunnable?.let { handler.removeCallbacks(it) }
-        
+        clearTasks()
         mediaPlayer?.apply {
             try {
                 if (isPlaying) pause()
                 seekTo(0)
             } catch (e: Exception) {}
         }
-
         statusText.text = getString(R.string.stopped)
+        startBtn.isEnabled = true
         stopBtn.isEnabled = false
-        startBtn.isEnabled = earphonesConfirmed && audioReady
-        hidePlayer()
+        playerLayout.visibility = View.GONE
     }
 
     private fun onPlaybackComplete() {
-        progressRunnable?.let { handler.removeCallbacks(it) }
+        isPlaybackStartedByUser = false
+        clearTasks()
         statusText.text = getString(R.string.finished)
+        startBtn.isEnabled = true
         stopBtn.isEnabled = false
-        startBtn.isEnabled = earphonesConfirmed && audioReady
-        hidePlayer()
-    }
-
-    private fun showPlayer() {
-        playerLayout.visibility = View.VISIBLE
-    }
-
-    private fun hidePlayer() {
         playerLayout.visibility = View.GONE
-        val params = progressFill.layoutParams
-        params.width = 0
-        progressFill.layoutParams = params
-        currentTimeText.text = "0:00"
-        remainingTimeText.text = "-0:00"
+    }
+
+    private fun clearTasks() {
+        countdownRunnable?.let { handler.removeCallbacks(it) }
+        progressRunnable?.let { handler.removeCallbacks(it) }
+        playbackRunnable?.let { handler.removeCallbacks(it) }
+        countdownRunnable = null
+        progressRunnable = null
+        playbackRunnable = null
     }
 
     private fun formatSeconds(totalSecs: Long): String {
@@ -373,9 +371,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        countdownRunnable?.let { handler.removeCallbacks(it) }
-        progressRunnable?.let { handler.removeCallbacks(it) }
-        playbackRunnable?.let { handler.removeCallbacks(it) }
+        clearTasks()
         fetchRunnable?.let { handler.removeCallbacks(it) }
         mediaPlayer?.release()
         mediaPlayer = null
