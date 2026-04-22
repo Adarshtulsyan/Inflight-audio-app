@@ -5,6 +5,18 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
+    <!-- Subtle Flight Motif (Top Right) -->
+    <ImageView
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_marginTop="-20dp"
+        android:layout_marginEnd="-20dp"
+        android:alpha="0.05"
+        android:rotation="45"
+        android:src="@drawable/ic_airplane"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <!-- Premium Header -->
     <LinearLayout
         android:id="@+id/headerLayout"
@@ -12,86 +24,126 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingTop="50dp"
+        android:paddingTop="60dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
             android:id="@+id/dadiImage"
-            android:layout_width="110dp"
-            android:layout_height="110dp"
-            android:layout_marginBottom="20dp"
-            android:contentDescription="Dadi branding"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_marginBottom="24dp"
+            android:alpha="0.9"
+            android:contentDescription="Branding"
             android:scaleType="centerInside"
-            android:src="@drawable/dadi"
-            android:alpha="0.85" />
+            android:src="@drawable/dadi" />
 
         <TextView
             android:id="@+id/titleText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="serif"
-            android:letterSpacing="0.12"
+            android:letterSpacing="0.2"
             android:text="@string/title"
             android:textAllCaps="true"
             android:textColor="@color/gold"
-            android:textSize="20sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/subtitleText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:letterSpacing="0.3"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif-light"
+            android:letterSpacing="0.4"
             android:text="@string/subtitle"
             android:textAllCaps="true"
             android:textColor="@color/text_secondary"
             android:textSize="10sp" />
     </LinearLayout>
 
-    <!-- Main Container -->
-    <LinearLayout
+    <!-- Content Card (Boarding Pass Style) -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/mainCard"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="28dp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        app:cardBackgroundColor="#121212"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:layout_constraintBottom_toTopOf="@+id/downloadPrompt"
         app:layout_constraintTop_toBottomOf="@id/headerLayout">
 
-        <!-- Status & Playback Info -->
         <LinearLayout
-            android:id="@+id/statusContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/earphone_row_bg_default"
-            android:gravity="center"
             android:orientation="vertical"
-            android:padding="24dp"
-            android:layout_marginBottom="32dp">
+            android:padding="24dp">
 
+            <!-- Flight Status Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_airplane"
+                    android:tint="@color/gold_soft" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.1"
+                    android:text="FLIGHT MODE: SYNCED"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/statusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/earphone_row_bg_default"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="2dp"
+                    android:text="LIVE"
+                    android:textColor="@color/gold"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Status Display -->
             <TextView
                 android:id="@+id/statusText"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-light"
-                android:letterSpacing="0.05"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="sans-serif-thin"
+                android:gravity="center"
                 android:text="@string/checking_audio"
                 android:textColor="@color/text_primary"
-                android:textSize="15sp" />
+                android:textSize="18sp" />
 
+            <!-- Progress Player -->
             <LinearLayout
                 android:id="@+id/playerLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="16dp"
                 android:orientation="vertical"
                 android:visibility="gone">
 
                 <FrameLayout
                     android:id="@+id/progressTrack"
                     android:layout_width="match_parent"
-                    android:layout_height="3dp"
-                    android:background="@color/divider">
+                    android:layout_height="2dp"
+                    android:background="#222222">
                     <View
                         android:id="@+id/progressFill"
                         android:layout_width="0dp"
@@ -109,6 +161,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:fontFamily="monospace"
                         android:text="0:00"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
@@ -117,116 +170,103 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:fontFamily="monospace"
                         android:gravity="end"
                         android:text="-0:00"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
                 </LinearLayout>
             </LinearLayout>
-        </LinearLayout>
 
-        <!-- Step 1: Earphones -->
-        <LinearLayout
-            android:id="@+id/earphoneRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="vertical"
-            android:alpha="1.0">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="STEP 1"
-                android:textColor="@color/gold"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1"
-                android:layout_marginBottom="4dp"/>
-
-            <TextView
-                android:id="@+id/earphoneText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="@string/earphone_prompt"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:layout_marginBottom="16dp"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"/>
-
-            <Button
-                android:id="@+id/confirmEarphonesBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/btn_confirm_bg"
-                android:paddingStart="40dp"
-                android:paddingEnd="40dp"
-                android:text="@string/confirm_earphones"
-                android:textAllCaps="false"
-                android:textColor="@color/background"
-                android:textSize="14sp"
-                android:stateListAnimator="@null" />
-        </LinearLayout>
-
-        <!-- Step 2: Playback (Initially locked) -->
-        <LinearLayout
-            android:id="@+id/playbackControls"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="STEP 2"
-                android:textColor="@color/gold"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1"
-                android:layout_marginBottom="12dp"/>
-
-            <LinearLayout
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:orientation="horizontal">
+                android:layout_height="1dp"
+                android:layout_marginVertical="24dp"
+                android:background="@color/divider" />
 
-                <Button
-                    android:id="@+id/startBtn"
-                    android:layout_width="140dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="12dp"
-                    android:background="@drawable/btn_start_bg"
-                    android:text="@string/start"
-                    android:textAllCaps="false"
-                    android:textColor="@color/background"
-                    android:textStyle="bold"
-                    android:stateListAnimator="@null" />
+            <!-- Interaction Layers -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-                <Button
-                    android:id="@+id/stopBtn"
-                    android:layout_width="140dp"
+                <!-- Step 1: Headset -->
+                <LinearLayout
+                    android:id="@+id/earphoneRow"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/btn_stop_bg"
-                    android:text="@string/stop"
-                    android:textAllCaps="false"
-                    android:textColor="@color/text_primary"
-                    android:enabled="false"
-                    android:stateListAnimator="@null" />
-            </LinearLayout>
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/earphoneText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="20dp"
+                        android:fontFamily="sans-serif-light"
+                        android:gravity="center"
+                        android:text="@string/earphone_prompt"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/confirmEarphonesBtn"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:background="@drawable/btn_confirm_bg"
+                        android:text="@string/confirm_earphones"
+                        android:textAllCaps="true"
+                        android:textColor="@color/background"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:stateListAnimator="@null" />
+                </LinearLayout>
+
+                <!-- Step 2: Controls -->
+                <LinearLayout
+                    android:id="@+id/playbackControls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <Button
+                        android:id="@+id/startBtn"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/btn_start_bg"
+                        android:text="@string/start"
+                        android:textAllCaps="true"
+                        android:textColor="@color/background"
+                        android:textStyle="bold"
+                        android:stateListAnimator="@null" />
+
+                    <Button
+                        android:id="@+id/stopBtn"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/btn_stop_bg"
+                        android:text="@string/stop"
+                        android:textAllCaps="true"
+                        android:textColor="@color/text_primary"
+                        android:enabled="false"
+                        android:stateListAnimator="@null" />
+                </LinearLayout>
+            </FrameLayout>
+
         </LinearLayout>
-    </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
-    <!-- Error/Notice -->
+    <!-- Footer / Notice -->
     <TextView
         android:id="@+id/downloadPrompt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="32dp"
+        android:layout_marginBottom="24dp"
         android:gravity="center"
         android:text="@string/audio_unavailable_msg"
         android:textColor="@color/btn_stop_text"
