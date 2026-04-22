@@ -1,12 +1,15 @@
 package com.silentflight.experience
 
+import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -18,6 +21,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -79,13 +83,7 @@ class MainActivity : AppCompatActivity() {
 
     private val headsetReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == AudioManager.ACTION_HEADSET_PLUG) {
-                val state = intent.getIntExtra("state", -1)
-                if (state == 1 && !earphonesConfirmed) {
-                    confirmBtn.isEnabled = true
-                    earphoneText.text = getString(R.string.earphone_confirmed)
-                }
-            }
+            updateHeadsetStatus()
         }
     }
 
@@ -121,8 +119,14 @@ class MainActivity : AppCompatActivity() {
         setupMediaPlayer()
         setupButtons()
 
+        val filter = IntentFilter().apply {
+            addAction(AudioManager.ACTION_HEADSET_PLUG)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
         @Suppress("DEPRECATION")
-        registerReceiver(headsetReceiver, IntentFilter(AudioManager.ACTION_HEADSET_PLUG))
+        registerReceiver(headsetReceiver, filter)
+        
         startConfigPolling()
     }
 
@@ -133,8 +137,44 @@ class MainActivity : AppCompatActivity() {
         earphoneRow.visibility = View.VISIBLE
         playbackControls.visibility = View.GONE
         playerLayout.visibility = View.GONE
-        confirmBtn.isEnabled = true
-        earphoneText.text = getString(R.string.earphone_prompt)
+        updateHeadsetStatus()
+    }
+
+    private fun updateHeadsetStatus() {
+        val isConnected = isHeadsetConnected()
+        if (isConnected) {
+            confirmBtn.isEnabled = true
+            earphoneText.text = getString(R.string.earphone_confirmed)
+            earphoneText.setTextColor(ContextCompat.getColor(this, R.color.earphone_text_confirmed))
+        } else {
+            confirmBtn.isEnabled = false
+            earphoneText.text = getString(R.string.earphone_prompt)
+            earphoneText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            
+            // If playing and earphones unplugged, stop playback
+            if (isPlaybackStartedByUser) {
+                stopPlayback()
+                // Force user back to confirmation state
+                earphoneRow.visibility = View.VISIBLE
+                playbackControls.visibility = View.GONE
+                earphonesConfirmed = false
+            }
+        }
+    }
+
+    private fun isHeadsetConnected(): Boolean {
+        // Since minSdk is 26, we can directly use the modern AudioDeviceInfo API
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        for (device in outputs) {
+            if (device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                device.type == AudioDeviceInfo.TYPE_USB_HEADSET) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun setupMediaPlayer() {
@@ -161,17 +201,23 @@ class MainActivity : AppCompatActivity() {
         }
 
         confirmBtn.setOnClickListener {
-            earphonesConfirmed = true
-            earphoneRow.visibility = View.GONE
-            playbackControls.visibility = View.VISIBLE
-            startBtn.isEnabled = audioReady
+            if (isHeadsetConnected()) {
+                earphonesConfirmed = true
+                earphoneRow.visibility = View.GONE
+                playbackControls.visibility = View.VISIBLE
+                startBtn.isEnabled = audioReady
+            }
         }
 
         startBtn.setOnClickListener {
-            isPlaybackStartedByUser = true
-            startBtn.isEnabled = false
-            stopBtn.isEnabled = true
-            schedulePlayback()
+            if (isHeadsetConnected()) {
+                isPlaybackStartedByUser = true
+                startBtn.isEnabled = false
+                stopBtn.isEnabled = true
+                schedulePlayback()
+            } else {
+                updateHeadsetStatus()
+            }
         }
 
         stopBtn.setOnClickListener {
@@ -310,6 +356,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAudio(positionMs: Int) {
+        if (!isHeadsetConnected()) {
+            updateHeadsetStatus()
+            return
+        }
         mediaPlayer?.let {
             try {
                 it.seekTo(positionMs)
