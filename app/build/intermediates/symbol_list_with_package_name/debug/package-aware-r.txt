@@ -1259,6 +1259,8 @@ color abc_tint_edittext
 color abc_tint_seek_thumb
 color abc_tint_spinner
 color abc_tint_switch_track
+color accent_blue
+color accent_gold
 color accent_material_dark
 color accent_material_light
 color androidx_core_ripple_material_light
@@ -1336,6 +1338,7 @@ color error_color_material_light
 color foreground_material_dark
 color foreground_material_light
 color gold
+color gold_soft
 color highlighted_text_material_dark
 color highlighted_text_material_light
 color m3_appbar_overlay_color
@@ -1999,6 +2002,7 @@ color primary_text_default_material_dark
 color primary_text_default_material_light
 color primary_text_disabled_material_dark
 color primary_text_disabled_material_light
+color progress_fill
 color progress_track
 color ripple_material_dark
 color ripple_material_light
@@ -2006,6 +2010,7 @@ color secondary_text_default_material_dark
 color secondary_text_default_material_light
 color secondary_text_disabled_material_dark
 color secondary_text_disabled_material_light
+color surface
 color switch_thumb_disabled_material_dark
 color switch_thumb_disabled_material_light
 color switch_thumb_material_dark
@@ -2013,6 +2018,8 @@ color switch_thumb_material_light
 color switch_thumb_normal_material_dark
 color switch_thumb_normal_material_light
 color text_earphone
+color text_primary
+color text_secondary
 color text_status
 color text_subtitle
 color text_time
@@ -2917,6 +2924,7 @@ drawable dot_default
 drawable download_prompt_bg
 drawable earphone_row_bg_confirmed
 drawable earphone_row_bg_default
+drawable ic_airplane
 drawable ic_arrow_back_black_24
 drawable ic_call_answer
 drawable ic_call_answer_low
@@ -3161,7 +3169,6 @@ id dragRight
 id dragStart
 id dragUp
 id dropdown_menu
-id earphoneDot
 id earphoneRow
 id earphoneText
 id easeIn
@@ -3176,6 +3183,7 @@ id end
 id endToStart
 id enterAlways
 id enterAlwaysCollapsed
+id enterCabinBtn
 id exitUntilCollapsed
 id expand_activities_button
 id expanded_menu
@@ -3202,6 +3210,7 @@ id graph
 id graph_wrap
 id group_divider
 id groups
+id headerLayout
 id header_title
 id hide_ime_id
 id hideable
@@ -3233,6 +3242,8 @@ id linear
 id listMode
 id list_item
 id m3_side_sheet
+id mainCard
+id mainContent
 id marquee
 id masked
 id match_parent
@@ -3335,6 +3346,7 @@ id pathRelative
 id peekHeight
 id percent
 id pin
+id playbackControls
 id playerLayout
 id position
 id postLayout
@@ -3407,12 +3419,14 @@ id startToEnd
 id startVertical
 id staticLayout
 id staticPostLayout
+id statusBadge
 id statusText
 id stop
 id stopBtn
 id stretch
 id submenuarrow
 id submit_area
+id subtitleText
 id tabMode
 id tag_accessibility_actions
 id tag_accessibility_clickable_spans
@@ -3446,6 +3460,7 @@ id textinput_suffix_text
 id time
 id title
 id titleDividerNoCustom
+id titleText
 id title_template
 id toggle
 id top
@@ -3471,6 +3486,7 @@ id view_tree_saved_state_registry_owner
 id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
+id welcomeScreen
 id withText
 id with_icon
 id withinBounds
@@ -3753,6 +3769,7 @@ string m3_sys_motion_easing_linear
 string m3_sys_motion_easing_standard
 string m3_sys_motion_easing_standard_accelerate
 string m3_sys_motion_easing_standard_decelerate
+string marwari_samaj
 string material_clock_display_divider
 string material_clock_toggle_content_description
 string material_hour_24h_suffix
@@ -3837,11 +3854,13 @@ string mtrl_switch_track_decoration_path
 string mtrl_switch_track_path
 string mtrl_timepicker_cancel
 string mtrl_timepicker_confirm
+string organized_by_prefix
 string password_toggle_content_description
 string path_password_eye
 string path_password_eye_mask_strike_through
 string path_password_eye_mask_visible
 string path_password_strike_through
+string proceed_to_cabin
 string ready
 string search_menu_title
 string searchbar_scrolling_view_behavior
@@ -3854,7 +3873,10 @@ string status_bar_notification_info_overflow
 string stop
 string stopped
 string subtitle
+string thank_you_message
 string title
+string welcome_message
+string welcome_title
 style AlertDialog_AppCompat
 style AlertDialog_AppCompat_Light
 style Animation_AppCompat_Dialog

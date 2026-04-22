@@ -1,5 +1,7 @@
 R_DEF: Internal format may change without notice
 local
+color accent_blue
+color accent_gold
 color background
 color btn_confirm_text
 color btn_stop_text
@@ -9,8 +11,13 @@ color dot_default
 color dot_speakers
 color earphone_text_confirmed
 color gold
+color gold_soft
+color progress_fill
 color progress_track
+color surface
 color text_earphone
+color text_primary
+color text_secondary
 color text_status
 color text_subtitle
 color text_time
@@ -23,6 +30,7 @@ drawable dot_default
 drawable download_prompt_bg
 drawable earphone_row_bg_confirmed
 drawable earphone_row_bg_default
+drawable ic_airplane
 drawable ic_launcher_background
 drawable ic_launcher_foreground
 drawable progress_gradient
@@ -30,16 +38,24 @@ id confirmEarphonesBtn
 id currentTimeText
 id dadiImage
 id downloadPrompt
-id earphoneDot
 id earphoneRow
 id earphoneText
+id enterCabinBtn
+id headerLayout
+id mainCard
+id mainContent
+id playbackControls
 id playerLayout
 id progressFill
 id progressTrack
 id remainingTimeText
 id startBtn
+id statusBadge
 id statusText
 id stopBtn
+id subtitleText
+id titleText
+id welcomeScreen
 layout activity_main
 mipmap ic_launcher
 mipmap ic_launcher_round
@@ -53,10 +69,16 @@ string earphone_checking
 string earphone_confirmed
 string earphone_prompt
 string finished
+string marwari_samaj
+string organized_by_prefix
+string proceed_to_cabin
 string ready
 string start
 string stop
 string stopped
 string subtitle
+string thank_you_message
 string title
+string welcome_message
+string welcome_title
 style Theme.SilentFlight

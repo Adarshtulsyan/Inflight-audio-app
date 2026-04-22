@@ -4,6 +4,10 @@
         "source": "com.silentflight.experience.app-main-33:/drawable/ic_launcher_background.xml"
     },
     {
+        "merged": "com.silentflight.experience.app-merged_res-31:/drawable_ic_airplane.xml.flat",
+        "source": "com.silentflight.experience.app-main-33:/drawable/ic_airplane.xml"
+    },
+    {
         "merged": "com.silentflight.experience.app-merged_res-31:/drawable_download_prompt_bg.xml.flat",
         "source": "com.silentflight.experience.app-main-33:/drawable/download_prompt_bg.xml"
     },

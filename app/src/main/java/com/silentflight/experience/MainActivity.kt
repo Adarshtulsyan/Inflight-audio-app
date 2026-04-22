@@ -130,14 +130,21 @@ class MainActivity : AppCompatActivity() {
         setupButtons()
 
         // Register Network Listener
-        val networkRequest = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
-        connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+        try {
+            val networkRequest = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+        } catch (e: Exception) {
+            Log.e("InflightSync", "Network callback registration failed")
+        }
         
-        // Initial checks
-        updateLiveStatus(isNetworkAvailable())
-        startConfigPolling()
+        // Initial checks - Move to background to avoid blocking main thread
+        handler.postDelayed({
+            val isOnline = try { isNetworkAvailable() } catch (e: Exception) { false }
+            updateLiveStatus(isOnline)
+            startConfigPolling()
+        }, 500)
     }
 
     private fun setupInitialState() {
