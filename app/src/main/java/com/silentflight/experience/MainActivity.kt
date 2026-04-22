@@ -293,9 +293,11 @@ class MainActivity : AppCompatActivity() {
                         updateLiveStatus(true)
                         val isFirstFetch = currentFileSha.isEmpty()
                         val shaChanged = sha != currentFileSha
+                        val timeDrift = Math.abs(currentStartTime - newTime)
                         
-                        if (isFirstFetch || shaChanged || currentStartTime != newTime) {
-                            Log.d("InflightSync", "Remote Update: $timeStr")
+                        // Only re-schedule if the SHA changed or the time drift is significant (> 2s)
+                        if (isFirstFetch || shaChanged || timeDrift > 2000) {
+                            Log.d("InflightSync", "Remote Sync Update: $timeStr (Drift: ${timeDrift}ms)")
                             currentFileSha = sha
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
@@ -324,40 +326,37 @@ class MainActivity : AppCompatActivity() {
         playerLayout.visibility = View.GONE
 
         val now = System.currentTimeMillis()
-        val delay = currentStartTime - now
+        val startDelay = currentStartTime - now
+        val duration = mediaPlayer?.duration?.toLong() ?: 0L
+        val endDelay = (currentStartTime + duration) - now
 
-        Log.d("InflightSync", "Target: $currentStartTime, Now: $now, Diff: $delay")
-
-        if (delay > 0) {
-            var remainingSecs = (delay / 1000)
+        if (startDelay > 0) {
+            var remainingSecs = (startDelay / 1000)
             val tick = object : Runnable {
                 override fun run() {
-                    statusText.text = "Starts in ${formatCountdown(remainingSecs)}"
-                    remainingSecs--
-                    if (remainingSecs >= 0) {
+                    if (!isPlaybackStartedByUser) return
+                    
+                    if (remainingSecs > 0) {
+                        statusText.text = "Starts in ${formatCountdown(remainingSecs)}"
+                        remainingSecs--
                         handler.postDelayed(this, 1000)
+                    } else {
+                        statusText.text = "Starting shortly..."
                     }
                 }
             }
             countdownRunnable = tick
             handler.post(tick)
 
-            val startTask = Runnable {
-                playbackRunnable = null
-                countdownRunnable?.let { handler.removeCallbacks(it) }
-                startAudio(0)
+            playbackRunnable = Runnable { 
+                if (isPlaybackStartedByUser) startAudio(0) 
             }
-            playbackRunnable = startTask
-            handler.postDelayed(startTask, delay)
+            handler.postDelayed(playbackRunnable!!, startDelay)
+        } else if (endDelay > 0) {
+            val msLate = (-startDelay).toInt()
+            startAudio(msLate)
         } else {
-            val msLate = -delay 
-            val duration = mediaPlayer?.duration?.toLong() ?: 0L
-            
-            if (duration > 0 && msLate > duration) {
-                onPlaybackComplete()
-            } else {
-                startAudio(msLate.toInt().coerceAtLeast(0))
-            }
+            onPlaybackComplete()
         }
     }
 
@@ -376,22 +375,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startProgressUpdates() {
+        progressRunnable?.let { handler.removeCallbacks(it) }
         val tick = object : Runnable {
             override fun run() {
                 val player = mediaPlayer ?: return
-                val durationMs = player.duration
-                val currentMs = player.currentPosition
+                if (!isPlaybackStartedByUser) return
 
-                // Robust completion check: if player stopped or reached the end
-                if (!player.isPlaying && currentMs >= (durationMs - 1000).coerceAtLeast(0)) {
+                val now = System.currentTimeMillis()
+                val durationMs = player.duration.toLong()
+                val currentMs = player.currentPosition.toLong()
+                
+                // 1. Absolute Time Completion Check
+                // If current time is past the scheduled end time, finish.
+                if (now >= (currentStartTime + durationMs)) {
                     onPlaybackComplete()
                     return
                 }
 
+                // 2. Player State Completion Check
+                if (!player.isPlaying && currentMs >= (durationMs - 2000)) {
+                    onPlaybackComplete()
+                    return
+                }
+
+                // 3. UI Updates
                 if (player.isPlaying && durationMs > 0) {
                     val trackWidth = progressTrack.width
                     if (trackWidth > 0) {
-                        val fillWidth = (trackWidth.toLong() * currentMs / durationMs).toInt()
+                        val fillPercentage = currentMs.toDouble() / durationMs.toDouble()
+                        val fillWidth = (trackWidth * fillPercentage).toInt()
                         val params = progressFill.layoutParams
                         params.width = fillWidth
                         progressFill.layoutParams = params
@@ -399,12 +411,10 @@ class MainActivity : AppCompatActivity() {
                     
                     val remainingMs = (durationMs - currentMs).coerceAtLeast(0)
                     currentTimeText.text = formatTime(currentMs / 1000L)
-                    remainingTimeText.text = "-${formatTime(remainingMs / 1000L)}"
+                    remainingTimeText.text = if (remainingMs > 0) "-${formatTime(remainingMs / 1000L)}" else formatTime(0)
                 }
                 
-                if (isPlaybackStartedByUser) {
-                    handler.postDelayed(this, 1000)
-                }
+                handler.postDelayed(this, 500)
             }
         }
         progressRunnable = tick
@@ -427,6 +437,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPlaybackComplete() {
+        if (!isPlaybackStartedByUser && statusText.text == getString(R.string.finished)) return
+        
         isPlaybackStartedByUser = false
         clearTasks()
         statusText.text = getString(R.string.finished)
@@ -441,6 +453,13 @@ class MainActivity : AppCompatActivity() {
         earphoneText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
 
         playerLayout.visibility = View.GONE
+        
+        mediaPlayer?.apply {
+            try {
+                if (isPlaying) stop()
+                seekTo(0)
+            } catch (e: Exception) {}
+        }
     }
 
     private fun clearTasks() {
