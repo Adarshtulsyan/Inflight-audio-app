@@ -46,10 +46,11 @@ class MainActivity : AppCompatActivity() {
     private var playbackRunnable: Runnable? = null
     private var fetchRunnable: Runnable? = null
 
-    private val configUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
+    private val apiUrl = "https://api.github.com/repos/Adarshtulsyan/Inflight-audio-app/contents/config.json"
 
     @Volatile
     private var currentStartTime: Long = 0L
+    private var currentFileSha: String = ""
 
     private val defaultStartTime: Long by lazy {
         Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
@@ -112,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         debugLogText.setBackgroundColor(0xFF000000.toInt()) // Solid Black background
         debugLogText.setTextColor(0xFF00FF00.toInt())       // Bright Green text (Matrix style)
 
-        addLog("V2.6 READY. Random Buster Active.")
+        addLog("V3.0 READY. API Sync Active.")
 
         setupEarphones()
         setupMediaPlayer()
@@ -145,53 +146,62 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchRemoteConfig() {
-        val timestamp = System.currentTimeMillis()
-        val randomKey = "rq" + (1000..9999).random()
-        val urlWithCacheBuster = "$configUrl?$randomKey=$timestamp"
-        
         val request = Request.Builder()
-            .url(urlWithCacheBuster)
+            .url(apiUrl)
             .cacheControl(okhttp3.CacheControl.FORCE_NETWORK)
-            .header("Cache-Control", "no-cache, no-store, must-revalidate")
-            .header("Pragma", "no-cache")
+            .header("Accept", "application/vnd.github.v3+json")
             .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                addLog("Net Error: ${e.message}")
+                addLog("API Error: ${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
-                val xCache = response.header("X-Cache") ?: "none"
-                
                 if (!response.isSuccessful) {
-                    addLog("Err ${response.code} ($xCache)")
+                    addLog("API HTTP ${response.code}")
                     return
                 }
 
                 try {
                     val json = JSONObject(rawBody)
-                    val timeStr = json.getString("startTime")
+                    val sha = json.getString("sha")
+                    
+                    // If content hasn't changed, skip parsing
+                    if (sha == currentFileSha) {
+                        handler.post { addLog("API: No Change") }
+                        return
+                    }
+                    
+                    val contentBase64 = json.getString("content").replace("\n", "")
+                    val decodedBytes = android.util.Base64.decode(contentBase64, android.util.Base64.DEFAULT)
+                    val decodedString = String(decodedBytes)
+                    
+                    val configJson = JSONObject(decodedString)
+                    val timeStr = configJson.getString("startTime")
+                    
                     val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
                     sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                     val date = sdf.parse(timeStr) ?: return
                     val newTime = date.time
 
                     handler.post {
+                        currentFileSha = sha
                         if (currentStartTime != newTime) {
-                            addLog("NEW! $timeStr")
+                            addLog("FOUND! $timeStr")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
+                                addLog("Jumping to $timeStr")
                                 schedulePlayback()
                             }
                         } else {
-                            addLog("OK: ${timeStr.takeLast(8)} ($xCache)")
+                            addLog("Live: $timeStr")
                         }
                     }
                 } catch (e: Exception) {
-                    addLog("JSON Err: ${e.message}")
+                    addLog("API JSON Err: ${e.message}")
                 }
             }
         })
