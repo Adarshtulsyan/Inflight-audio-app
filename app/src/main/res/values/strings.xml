@@ -14,6 +14,7 @@
     <string name="stopped">Journey Paused</string>
     <string name="finished">Journey Completed</string>
     <string name="audio_unavailable">Cabin Audio Offline</string>
+    <string name="audio_unavailable_msg">Audio stream unavailable. Please check system connection.</string>
     <string name="welcome_message">We are honored to have you on board for this unique spiritual experience. Join us as we commence the Rani Sati Dadi Mangal Path, beautifully orchestrated for our journey through the skies.</string>
     <string name="organized_by_prefix">Organized by</string>
     <string name="marwari_samaj">Marwari Samaj</string>
