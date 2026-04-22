@@ -14,9 +14,7 @@ import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import okhttp3.Call
@@ -31,6 +29,10 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 
+/**
+ * Premium Inflight Audio Experience (V4.0)
+ * Cleaned up logs, enhanced UI, and remote-sync ready.
+ */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var audioManager: AudioManager
@@ -59,8 +61,8 @@ class MainActivity : AppCompatActivity() {
         }.timeInMillis
     }
 
-    private lateinit var earphoneRow: LinearLayout
-    private lateinit var earphoneDot: View
+    private lateinit var earphoneRow: View
+    private lateinit var playbackControls: View
     private lateinit var earphoneText: TextView
     private lateinit var confirmBtn: Button
     private lateinit var startBtn: Button
@@ -72,7 +74,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var currentTimeText: TextView
     private lateinit var remainingTimeText: TextView
     private lateinit var downloadPrompt: View
-    private lateinit var debugLogText: TextView
 
     private val headsetReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -91,30 +92,23 @@ class MainActivity : AppCompatActivity() {
 
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-
         currentStartTime = prefs.getLong("start_time", defaultStartTime)
 
-        earphoneRow     = findViewById(R.id.earphoneRow)
-        earphoneDot     = findViewById(R.id.earphoneDot)
-        earphoneText    = findViewById(R.id.earphoneText)
-        confirmBtn      = findViewById(R.id.confirmEarphonesBtn)
-        startBtn        = findViewById(R.id.startBtn)
-        stopBtn         = findViewById(R.id.stopBtn)
-        statusText      = findViewById(R.id.statusText)
-        playerLayout    = findViewById(R.id.playerLayout)
-        progressTrack   = findViewById(R.id.progressTrack)
-        progressFill    = findViewById(R.id.progressFill)
-        currentTimeText = findViewById(R.id.currentTimeText)
+        // View Binding
+        earphoneRow      = findViewById(R.id.earphoneRow)
+        playbackControls = findViewById(R.id.playbackControls)
+        earphoneText     = findViewById(R.id.earphoneText)
+        confirmBtn       = findViewById(R.id.confirmEarphonesBtn)
+        startBtn         = findViewById(R.id.startBtn)
+        stopBtn          = findViewById(R.id.stopBtn)
+        statusText       = findViewById(R.id.statusText)
+        playerLayout     = findViewById(R.id.playerLayout)
+        progressTrack    = findViewById(R.id.progressTrack)
+        progressFill     = findViewById(R.id.progressFill)
+        currentTimeText  = findViewById(R.id.currentTimeText)
         remainingTimeText = findViewById(R.id.remainingTimeText)
-        downloadPrompt  = findViewById(R.id.downloadPrompt)
+        downloadPrompt   = findViewById(R.id.downloadPrompt)
         
-        // Setup a simple debug log view if it doesn't exist in XML yet
-        debugLogText = findViewById(R.id.debugLogText)
-        debugLogText.setBackgroundColor(0xFF000000.toInt()) // Solid Black background
-        debugLogText.setTextColor(0xFF00FF00.toInt())       // Bright Green text (Matrix style)
-
-        addLog("V3.1 READY. UI Reset fixed.")
-
         setupEarphones()
         setupMediaPlayer()
         setupButtons()
@@ -125,20 +119,11 @@ class MainActivity : AppCompatActivity() {
         startConfigPolling()
     }
 
-    private fun addLog(message: String) {
-        handler.post {
-            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(java.util.Date())
-            val newLog = "[$time] $message\n${debugLogText.text}"
-            debugLogText.text = newLog.take(500) // Keep last 500 chars
-            Log.d("InflightApp", message)
-        }
-    }
-
     private fun startConfigPolling() {
         val pollTask = object : Runnable {
             override fun run() {
                 fetchRemoteConfig()
-                handler.postDelayed(this, 10 * 1000) // Poll every 10 seconds
+                handler.postDelayed(this, 10 * 1000) 
             }
         }
         fetchRunnable = pollTask
@@ -153,32 +138,20 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                addLog("API Error: ${e.message}")
-            }
+            override fun onFailure(call: Call, e: IOException) {}
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
-                if (!response.isSuccessful) {
-                    addLog("API HTTP ${response.code}")
-                    return
-                }
+                if (!response.isSuccessful) return
 
                 try {
                     val json = JSONObject(rawBody)
                     val sha = json.getString("sha")
-                    
-                    // If content hasn't changed, skip parsing
-                    if (sha == currentFileSha) {
-                        handler.post { addLog("API: No Change") }
-                        return
-                    }
+                    if (sha == currentFileSha) return
                     
                     val contentBase64 = json.getString("content").replace("\n", "")
                     val decodedBytes = android.util.Base64.decode(contentBase64, android.util.Base64.DEFAULT)
-                    val decodedString = String(decodedBytes)
-                    
-                    val configJson = JSONObject(decodedString)
+                    val configJson = JSONObject(String(decodedBytes))
                     val timeStr = configJson.getString("startTime")
                     
                     val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
@@ -189,20 +162,14 @@ class MainActivity : AppCompatActivity() {
                     handler.post {
                         currentFileSha = sha
                         if (currentStartTime != newTime) {
-                            addLog("FOUND! $timeStr")
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
-                                addLog("Jumping to $timeStr")
                                 schedulePlayback()
                             }
-                        } else {
-                            addLog("Live: $timeStr")
                         }
                     }
-                } catch (e: Exception) {
-                    addLog("API JSON Err: ${e.message}")
-                }
+                } catch (e: Exception) {}
             }
         })
     }
@@ -210,6 +177,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupEarphones() {
         earphoneText.text = getString(R.string.earphone_prompt)
         confirmBtn.visibility = View.VISIBLE
+        earphoneRow.visibility = View.VISIBLE
+        playbackControls.visibility = View.INVISIBLE
     }
 
     private fun setupMediaPlayer() {
@@ -233,23 +202,18 @@ class MainActivity : AppCompatActivity() {
     private fun setupButtons() {
         confirmBtn.setOnClickListener {
             earphonesConfirmed = true
-            earphoneRow.setBackgroundResource(R.drawable.earphone_row_bg_confirmed)
-            earphoneDot.setBackgroundResource(R.drawable.dot_confirmed)
-            earphoneText.text = getString(R.string.earphone_confirmed)
-            earphoneText.setTextColor(ContextCompat.getColor(this, R.color.earphone_text_confirmed))
-            confirmBtn.visibility = View.GONE
+            earphoneRow.visibility = View.GONE
+            playbackControls.visibility = View.VISIBLE
             updateStartButton()
         }
 
         startBtn.setOnClickListener {
             startBtn.isEnabled = false
             stopBtn.isEnabled = true
-            addLog("User started playback manually")
             schedulePlayback()
         }
 
         stopBtn.setOnClickListener {
-            addLog("User stopped playback")
             stopPlayback()
         }
     }
@@ -266,7 +230,6 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) { }
 
-        // Hide the player UI (progress bar/time) for future starts
         hidePlayer()
 
         val now = System.currentTimeMillis()
@@ -276,7 +239,7 @@ class MainActivity : AppCompatActivity() {
             var remaining = (delay / 1000)
             val tick = object : Runnable {
                 override fun run() {
-                    statusText.text = "⏳ Starts in ${remaining}s"
+                    statusText.text = "Starts in ${formatSeconds(remaining)}"
                     remaining--
                     if (remaining >= 0) {
                         handler.postDelayed(this, 1000)
@@ -292,7 +255,7 @@ class MainActivity : AppCompatActivity() {
                 mediaPlayer?.let {
                     it.seekTo(0)
                     it.start()
-                    statusText.text = "▶️ Playing"
+                    statusText.text = "Enjoying Silent Flight"
                     showPlayer()
                     startProgressUpdates()
                 }
@@ -304,16 +267,14 @@ class MainActivity : AppCompatActivity() {
             val duration = mediaPlayer?.duration ?: 0
             
             if (duration > 0 && msLateLong > duration) {
-                statusText.text = "🏁 Session has finished"
-                addLog("Sync error: Time is beyond audio length")
+                statusText.text = "Session has finished"
                 stopPlayback()
             } else {
                 val msLate = msLateLong.toInt().coerceAtLeast(0)
-                addLog("Syncing: Seeking to $msLate ms")
                 mediaPlayer?.let {
                     it.seekTo(msLate)
                     it.start()
-                    statusText.text = "▶️ Joined in sync"
+                    statusText.text = "Joined in sync"
                     showPlayer()
                     startProgressUpdates()
                 }
@@ -351,10 +312,7 @@ class MainActivity : AppCompatActivity() {
         countdownRunnable?.let { handler.removeCallbacks(it) }
         progressRunnable?.let { handler.removeCallbacks(it) }
         playbackRunnable?.let { handler.removeCallbacks(it) }
-        countdownRunnable = null
-        progressRunnable = null
-        playbackRunnable = null
-
+        
         mediaPlayer?.apply {
             try {
                 if (isPlaying) pause()
@@ -369,9 +327,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPlaybackComplete() {
-        addLog("Playback finished naturally")
         progressRunnable?.let { handler.removeCallbacks(it) }
-        progressRunnable = null
         statusText.text = getString(R.string.finished)
         stopBtn.isEnabled = false
         startBtn.isEnabled = earphonesConfirmed && audioReady
@@ -389,6 +345,12 @@ class MainActivity : AppCompatActivity() {
         progressFill.layoutParams = params
         currentTimeText.text = "0:00"
         remainingTimeText.text = "-0:00"
+    }
+
+    private fun formatSeconds(totalSecs: Long): String {
+        val m = totalSecs / 60
+        val s = totalSecs % 60
+        return if (m > 0) "${m}m ${s}s" else "${s}s"
     }
 
     private fun formatTime(secs: Long): String {
