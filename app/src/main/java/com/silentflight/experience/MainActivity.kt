@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private val client = OkHttpClient()
     private lateinit var prefs: SharedPreferences
 
+    private var isPlaybackStartedByUser = false
     private var earphonesConfirmed = false
     private var audioReady = false
     private var countdownRunnable: Runnable? = null
@@ -164,7 +165,7 @@ class MainActivity : AppCompatActivity() {
                         if (currentStartTime != newTime) {
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
-                            if (stopBtn.isEnabled || mediaPlayer?.isPlaying == true) {
+                            if (isPlaybackStartedByUser) {
                                 schedulePlayback()
                             }
                         }
@@ -208,12 +209,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         startBtn.setOnClickListener {
+            isPlaybackStartedByUser = true
             startBtn.isEnabled = false
             stopBtn.isEnabled = true
             schedulePlayback()
         }
 
         stopBtn.setOnClickListener {
+            isPlaybackStartedByUser = false
             stopPlayback()
         }
     }
