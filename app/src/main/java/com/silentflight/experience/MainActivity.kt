@@ -1,16 +1,24 @@
 package com.silentflight.experience
 
+import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
@@ -18,6 +26,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -33,6 +42,7 @@ import java.util.TimeZone
 class MainActivity : AppCompatActivity() {
 
     private lateinit var audioManager: AudioManager
+    private lateinit var connectivityManager: ConnectivityManager
     private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
     private val client = OkHttpClient()
@@ -70,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var startBtn: Button
     private lateinit var stopBtn: Button
     private lateinit var statusText: TextView
+    private lateinit var statusBadge: TextView
     private lateinit var playerLayout: LinearLayout
     private lateinit var progressTrack: View
     private lateinit var progressFill: View
@@ -79,13 +90,16 @@ class MainActivity : AppCompatActivity() {
 
     private val headsetReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == AudioManager.ACTION_HEADSET_PLUG) {
-                val state = intent.getIntExtra("state", -1)
-                if (state == 1 && !earphonesConfirmed) {
-                    confirmBtn.isEnabled = true
-                    earphoneText.text = getString(R.string.earphone_confirmed)
-                }
-            }
+            updateHeadsetStatus()
+        }
+    }
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            handler.post { updateLiveStatus(true) }
+        }
+        override fun onLost(network: Network) {
+            handler.post { updateLiveStatus(false) }
         }
     }
 
@@ -94,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         
         val storedTime = prefs.getLong("start_time", 0L)
@@ -110,6 +125,7 @@ class MainActivity : AppCompatActivity() {
         startBtn         = findViewById(R.id.startBtn)
         stopBtn          = findViewById(R.id.stopBtn)
         statusText       = findViewById(R.id.statusText)
+        statusBadge      = findViewById(R.id.statusBadge)
         playerLayout     = findViewById(R.id.playerLayout)
         progressTrack    = findViewById(R.id.progressTrack)
         progressFill     = findViewById(R.id.progressFill)
@@ -121,8 +137,23 @@ class MainActivity : AppCompatActivity() {
         setupMediaPlayer()
         setupButtons()
 
+        // Register Headset Listener
+        val filter = IntentFilter().apply {
+            addAction(AudioManager.ACTION_HEADSET_PLUG)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
         @Suppress("DEPRECATION")
-        registerReceiver(headsetReceiver, IntentFilter(AudioManager.ACTION_HEADSET_PLUG))
+        registerReceiver(headsetReceiver, filter)
+        
+        // Register Network Listener
+        val networkRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+        
+        // Initial checks
+        updateLiveStatus(isNetworkAvailable())
         startConfigPolling()
     }
 
@@ -133,8 +164,59 @@ class MainActivity : AppCompatActivity() {
         earphoneRow.visibility = View.VISIBLE
         playbackControls.visibility = View.GONE
         playerLayout.visibility = View.GONE
-        confirmBtn.isEnabled = true
-        earphoneText.text = getString(R.string.earphone_prompt)
+        updateHeadsetStatus()
+    }
+
+    private fun updateLiveStatus(online: Boolean) {
+        if (online) {
+            statusBadge.text = "LIVE"
+            statusBadge.setTextColor(ContextCompat.getColor(this, R.color.gold))
+            statusBadge.alpha = 1.0f
+        } else {
+            statusBadge.text = "OFFLINE"
+            statusBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            statusBadge.alpha = 0.5f
+        }
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val activeNetwork = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private fun updateHeadsetStatus() {
+        val isConnected = isHeadsetConnected()
+        if (isConnected) {
+            confirmBtn.isEnabled = true
+            earphoneText.text = getString(R.string.earphone_confirmed)
+            earphoneText.setTextColor(ContextCompat.getColor(this, R.color.earphone_text_confirmed))
+        } else {
+            confirmBtn.isEnabled = false
+            earphoneText.text = getString(R.string.earphone_prompt)
+            earphoneText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            
+            if (isPlaybackStartedByUser) {
+                stopPlayback()
+                earphoneRow.visibility = View.VISIBLE
+                playbackControls.visibility = View.GONE
+                earphonesConfirmed = false
+            }
+        }
+    }
+
+    private fun isHeadsetConnected(): Boolean {
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        for (device in outputs) {
+            if (device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                device.type == AudioDeviceInfo.TYPE_USB_HEADSET) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun setupMediaPlayer() {
@@ -161,17 +243,23 @@ class MainActivity : AppCompatActivity() {
         }
 
         confirmBtn.setOnClickListener {
-            earphonesConfirmed = true
-            earphoneRow.visibility = View.GONE
-            playbackControls.visibility = View.VISIBLE
-            startBtn.isEnabled = audioReady
+            if (isHeadsetConnected()) {
+                earphonesConfirmed = true
+                earphoneRow.visibility = View.GONE
+                playbackControls.visibility = View.VISIBLE
+                startBtn.isEnabled = audioReady
+            }
         }
 
         startBtn.setOnClickListener {
-            isPlaybackStartedByUser = true
-            startBtn.isEnabled = false
-            stopBtn.isEnabled = true
-            schedulePlayback()
+            if (isHeadsetConnected()) {
+                isPlaybackStartedByUser = true
+                startBtn.isEnabled = false
+                stopBtn.isEnabled = true
+                schedulePlayback()
+            } else {
+                updateHeadsetStatus()
+            }
         }
 
         stopBtn.setOnClickListener {
@@ -218,11 +306,15 @@ class MainActivity : AppCompatActivity() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("InflightSync", "Network error")
+                handler.post { updateLiveStatus(false) }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
-                if (!response.isSuccessful) return
+                if (!response.isSuccessful) {
+                    handler.post { updateLiveStatus(false) }
+                    return
+                }
 
                 try {
                     val json = JSONObject(rawBody)
@@ -238,6 +330,7 @@ class MainActivity : AppCompatActivity() {
                     val newTime = date.time
 
                     handler.post {
+                        updateLiveStatus(true)
                         val isFirstFetch = currentFileSha.isEmpty()
                         val shaChanged = sha != currentFileSha
                         
@@ -301,7 +394,6 @@ class MainActivity : AppCompatActivity() {
             val duration = mediaPlayer?.duration?.toLong() ?: 0L
             
             if (duration > 0 && msLate > duration) {
-                statusText.text = getString(R.string.finished)
                 onPlaybackComplete()
             } else {
                 startAudio(msLate.toInt().coerceAtLeast(0))
@@ -310,6 +402,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAudio(positionMs: Int) {
+        if (!isHeadsetConnected()) {
+            updateHeadsetStatus()
+            return
+        }
         mediaPlayer?.let {
             try {
                 it.seekTo(positionMs)
@@ -365,11 +461,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPlaybackComplete() {
-        if (!isPlaybackStartedByUser) return
         clearTasks()
         statusText.text = getString(R.string.finished)
-        startBtn.isEnabled = true
-        stopBtn.isEnabled = false
+        
+        // Final spiritual goodbye message
+        earphoneRow.visibility = View.VISIBLE
+        playbackControls.visibility = View.GONE
+        confirmBtn.visibility = View.GONE
+        
+        earphoneText.text = getString(R.string.thank_you_message)
+        earphoneText.setTextColor(ContextCompat.getColor(this, R.color.gold))
+        earphoneText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+
         playerLayout.visibility = View.GONE
     }
 
@@ -411,5 +514,6 @@ class MainActivity : AppCompatActivity() {
         mediaPlayer?.release()
         mediaPlayer = null
         try { unregisterReceiver(headsetReceiver) } catch (_: Exception) {}
+        try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (_: Exception) {}
     }
 }
