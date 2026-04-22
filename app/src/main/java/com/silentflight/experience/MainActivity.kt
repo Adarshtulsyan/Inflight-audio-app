@@ -113,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         debugLogText.setBackgroundColor(0xFF000000.toInt()) // Solid Black background
         debugLogText.setTextColor(0xFF00FF00.toInt())       // Bright Green text (Matrix style)
 
-        addLog("V3.0 READY. API Sync Active.")
+        addLog("V3.1 READY. UI Reset fixed.")
 
         setupEarphones()
         setupMediaPlayer()
@@ -260,8 +260,14 @@ class MainActivity : AppCompatActivity() {
         playbackRunnable?.let { handler.removeCallbacks(it) }
         
         try {
-            mediaPlayer?.let { if (it.isPlaying) it.pause() }
+            mediaPlayer?.let { 
+                if (it.isPlaying) it.pause() 
+                it.seekTo(0)
+            }
         } catch (e: Exception) { }
+
+        // Hide the player UI (progress bar/time) for future starts
+        hidePlayer()
 
         val now = System.currentTimeMillis()
         val delay = currentStartTime - now
