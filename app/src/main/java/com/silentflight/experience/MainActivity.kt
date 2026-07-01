@@ -13,6 +13,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -25,6 +26,7 @@ import android.view.animation.Animation
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import okhttp3.Call
@@ -42,7 +44,7 @@ import java.util.TimeZone
 class MainActivity : AppCompatActivity() {
 
     private lateinit var connectivityManager: ConnectivityManager
-    private var mediaPlayer: MediaPlayer? = null
+    private var videoView: VideoView? = null
     private val handler = Handler(Looper.getMainLooper())
     private val client = OkHttpClient()
     private lateinit var prefs: SharedPreferences
@@ -72,6 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mainContent: View
     private lateinit var enterCabinBtn: Button
     
+    private lateinit var dadiImage: View
     private lateinit var earphoneRow: View
     private lateinit var playbackControls: View
     private lateinit var earphoneText: TextView
@@ -80,6 +83,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stopBtn: Button
     private lateinit var statusText: TextView
     private lateinit var statusBadge: TextView
+    private lateinit var deviceTimeText: TextView
+    private lateinit var targetTimeText: TextView
     private lateinit var playerLayout: LinearLayout
     private lateinit var progressTrack: View
     private lateinit var progressFill: View
@@ -110,14 +115,17 @@ class MainActivity : AppCompatActivity() {
         mainContent      = findViewById(R.id.mainContent)
         enterCabinBtn    = findViewById(R.id.enterCabinBtn)
 
+        dadiImage        = findViewById(R.id.dadiImage)
+        videoView        = findViewById(R.id.videoView)
         earphoneRow      = findViewById(R.id.earphoneRow)
-        playbackControls = findViewById(R.id.playbackControls)
         earphoneText     = findViewById(R.id.earphoneText)
         confirmBtn       = findViewById(R.id.confirmEarphonesBtn)
         startBtn         = findViewById(R.id.startBtn)
         stopBtn          = findViewById(R.id.stopBtn)
         statusText       = findViewById(R.id.statusText)
         statusBadge      = findViewById(R.id.statusBadge)
+        deviceTimeText   = findViewById(R.id.deviceTimeText)
+        targetTimeText   = findViewById(R.id.targetTimeText)
         playerLayout     = findViewById(R.id.playerLayout)
         progressTrack    = findViewById(R.id.progressTrack)
         progressFill     = findViewById(R.id.progressFill)
@@ -187,15 +195,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupMediaPlayer() {
         try {
-            mediaPlayer = MediaPlayer.create(this, R.raw.audio)
-            if (mediaPlayer != null) {
+            val videoUri = Uri.parse("android.resource://$packageName/${R.raw.video}")
+            videoView?.setVideoURI(videoUri)
+            
+            videoView?.setOnPreparedListener { mp ->
                 audioReady = true
                 statusText.text = getString(R.string.ready)
-                mediaPlayer?.setOnCompletionListener { onPlaybackComplete() }
-            } else {
+                mp.isLooping = false
+            }
+            
+            videoView?.setOnCompletionListener { onPlaybackComplete() }
+            
+            videoView?.setOnErrorListener { _, _, _ ->
                 audioReady = false
                 statusText.text = getString(R.string.audio_unavailable)
                 downloadPrompt.visibility = View.VISIBLE
+                true
             }
         } catch (e: Exception) {
             audioReady = false
@@ -249,11 +264,26 @@ class MainActivity : AppCompatActivity() {
         val pollTask = object : Runnable {
             override fun run() {
                 fetchRemoteConfig()
-                handler.postDelayed(this, 15000) 
+                updateDiagnosticTimes()
+                handler.postDelayed(this, 1000) 
             }
         }
         fetchRunnable = pollTask
         handler.post(pollTask)
+    }
+
+    private fun updateDiagnosticTimes() {
+        val now = System.currentTimeMillis()
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val deviceTime = sdf.format(now)
+        
+        val targetSdf = SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault())
+        val targetTime = targetSdf.format(currentStartTime)
+        
+        handler.post {
+            deviceTimeText.text = "Device: $deviceTime"
+            targetTimeText.text = "Target: $targetTime"
+        }
     }
 
     private fun fetchRemoteConfig() {
@@ -317,17 +347,19 @@ class MainActivity : AppCompatActivity() {
     private fun schedulePlayback() {
         clearTasks()
         try {
-            mediaPlayer?.let { 
+            videoView?.let { 
                 if (it.isPlaying) it.pause() 
                 it.seekTo(0)
             }
         } catch (e: Exception) { }
 
         playerLayout.visibility = View.GONE
+        videoView?.visibility = View.GONE
+        dadiImage.visibility = View.VISIBLE
 
         val now = System.currentTimeMillis()
         val startDelay = currentStartTime - now
-        val duration = mediaPlayer?.duration?.toLong() ?: 0L
+        val duration = videoView?.duration?.toLong() ?: 0L
         val endDelay = (currentStartTime + duration) - now
 
         if (startDelay > 0) {
@@ -361,11 +393,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAudio(positionMs: Int) {
-        mediaPlayer?.let {
+        videoView?.let {
             try {
+                dadiImage.visibility = View.GONE
+                it.visibility = View.VISIBLE
                 it.seekTo(positionMs)
                 it.start()
-                statusText.text = "Enjoying Cabin Audio"
+                statusText.text = "Enjoying Cabin Journey"
                 playerLayout.visibility = View.VISIBLE
                 startProgressUpdates()
             } catch (e: Exception) {
@@ -378,7 +412,7 @@ class MainActivity : AppCompatActivity() {
         progressRunnable?.let { handler.removeCallbacks(it) }
         val tick = object : Runnable {
             override fun run() {
-                val player = mediaPlayer ?: return
+                val player = videoView ?: return
                 if (!isPlaybackStartedByUser) return
 
                 val now = System.currentTimeMillis()
@@ -386,14 +420,13 @@ class MainActivity : AppCompatActivity() {
                 val currentMs = player.currentPosition.toLong()
                 
                 // 1. Absolute Time Completion Check
-                // If current time is past the scheduled end time, finish.
-                if (now >= (currentStartTime + durationMs)) {
+                if (now >= (currentStartTime + durationMs) && durationMs > 0) {
                     onPlaybackComplete()
                     return
                 }
 
                 // 2. Player State Completion Check
-                if (!player.isPlaying && currentMs >= (durationMs - 2000)) {
+                if (!player.isPlaying && currentMs >= (durationMs - 2000) && durationMs > 0) {
                     onPlaybackComplete()
                     return
                 }
@@ -424,12 +457,14 @@ class MainActivity : AppCompatActivity() {
     private fun stopPlayback() {
         isPlaybackStartedByUser = false
         clearTasks()
-        mediaPlayer?.apply {
+        videoView?.apply {
             try {
                 if (isPlaying) pause()
                 seekTo(0)
+                visibility = View.GONE
             } catch (e: Exception) {}
         }
+        dadiImage.visibility = View.VISIBLE
         statusText.text = getString(R.string.stopped)
         startBtn.isEnabled = true
         stopBtn.isEnabled = false
@@ -453,10 +488,12 @@ class MainActivity : AppCompatActivity() {
         earphoneText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
 
         playerLayout.visibility = View.GONE
+        videoView?.visibility = View.GONE
+        dadiImage.visibility = View.VISIBLE
         
-        mediaPlayer?.apply {
+        videoView?.apply {
             try {
-                if (isPlaying) stop()
+                if (isPlaying) stopPlayback()
                 seekTo(0)
             } catch (e: Exception) {}
         }
@@ -497,8 +534,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         clearTasks()
         fetchRunnable?.let { handler.removeCallbacks(it) }
-        mediaPlayer?.release()
-        mediaPlayer = null
+        videoView?.stopPlayback()
+        videoView = null
         try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (_: Exception) {}
     }
 }
