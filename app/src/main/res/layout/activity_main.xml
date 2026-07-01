@@ -134,7 +134,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_gravity="center"
-                    android:visibility="gone" />
+                    android:visibility="invisible" />
             </FrameLayout>
 
             <TextView
@@ -350,6 +350,7 @@
                             android:layout_marginEnd="8dp"
                             android:layout_weight="1"
                             android:background="@drawable/btn_start_bg"
+                            android:enabled="false"
                             android:text="@string/start"
                             android:textAllCaps="true"
                             android:textColor="@color/background"
