@@ -13,6 +13,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -25,6 +26,7 @@ import android.view.animation.Animation
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import okhttp3.Call
@@ -42,7 +44,7 @@ import java.util.TimeZone
 class MainActivity : AppCompatActivity() {
 
     private lateinit var connectivityManager: ConnectivityManager
-    private var mediaPlayer: MediaPlayer? = null
+    private var videoView: VideoView? = null
     private val handler = Handler(Looper.getMainLooper())
     private val client = OkHttpClient()
     private lateinit var prefs: SharedPreferences
@@ -50,28 +52,28 @@ class MainActivity : AppCompatActivity() {
     private var isPlaybackStartedByUser = false
     private var earphonesConfirmed = false
     private var audioReady = false
+    private var isMediaLoading = false
     private var countdownRunnable: Runnable? = null
     private var progressRunnable: Runnable? = null
     private var playbackRunnable: Runnable? = null
     private var fetchRunnable: Runnable? = null
 
-    private val apiUrl = "https://api.github.com/repos/Adarshtulsyan/Inflight-audio-app/contents/config.json"
+    private val apiUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
 
     @Volatile
     private var currentStartTime: Long = 0L
-    private var currentFileSha: String = ""
+    private var serverClockOffset: Long = 0L
+    private var lastFetchedTimeStr: String = ""
 
     private val defaultStartTime: Long by lazy {
-        Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
-            set(2026, Calendar.APRIL, 22, 12, 19, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        System.currentTimeMillis() + 120000 // 2 minutes from now
     }
 
     private lateinit var welcomeScreen: View
     private lateinit var mainContent: View
     private lateinit var enterCabinBtn: Button
     
+    private lateinit var dadiImage: View
     private lateinit var earphoneRow: View
     private lateinit var playbackControls: View
     private lateinit var earphoneText: TextView
@@ -80,6 +82,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stopBtn: Button
     private lateinit var statusText: TextView
     private lateinit var statusBadge: TextView
+    private lateinit var deviceTimeText: TextView
+    private lateinit var targetTimeText: TextView
     private lateinit var playerLayout: LinearLayout
     private lateinit var progressTrack: View
     private lateinit var progressFill: View
@@ -103,13 +107,14 @@ class MainActivity : AppCompatActivity() {
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         
-        val storedTime = prefs.getLong("start_time", 0L)
-        currentStartTime = if (storedTime < defaultStartTime) defaultStartTime else storedTime
+        currentStartTime = prefs.getLong("start_time", defaultStartTime)
 
         welcomeScreen    = findViewById(R.id.welcomeScreen)
         mainContent      = findViewById(R.id.mainContent)
         enterCabinBtn    = findViewById(R.id.enterCabinBtn)
 
+        dadiImage        = findViewById(R.id.dadiImage)
+        videoView        = findViewById(R.id.videoView)
         earphoneRow      = findViewById(R.id.earphoneRow)
         playbackControls = findViewById(R.id.playbackControls)
         earphoneText     = findViewById(R.id.earphoneText)
@@ -118,6 +123,8 @@ class MainActivity : AppCompatActivity() {
         stopBtn          = findViewById(R.id.stopBtn)
         statusText       = findViewById(R.id.statusText)
         statusBadge      = findViewById(R.id.statusBadge)
+        deviceTimeText   = findViewById(R.id.deviceTimeText)
+        targetTimeText   = findViewById(R.id.targetTimeText)
         playerLayout     = findViewById(R.id.playerLayout)
         progressTrack    = findViewById(R.id.progressTrack)
         progressFill     = findViewById(R.id.progressFill)
@@ -126,8 +133,9 @@ class MainActivity : AppCompatActivity() {
         downloadPrompt   = findViewById(R.id.downloadPrompt)
         
         setupInitialState()
-        setupMediaPlayer()
         setupButtons()
+        
+        setupMediaPlayer()
 
         // Register Network Listener
         try {
@@ -179,6 +187,7 @@ class MainActivity : AppCompatActivity() {
         confirmBtn.isEnabled = true
         earphoneText.text = getString(R.string.earphone_prompt)
         earphoneText.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        earphoneText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
     }
 
     private fun isHeadsetConnected(): Boolean {
@@ -187,32 +196,85 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupMediaPlayer() {
         try {
-            mediaPlayer = MediaPlayer.create(this, R.raw.audio)
-            if (mediaPlayer != null) {
+            videoView?.setOnPreparedListener { mp ->
+                Log.d("InflightSync", "MediaPlayer prepared. Duration: ${mp.duration}")
                 audioReady = true
+                isMediaLoading = false
                 statusText.text = getString(R.string.ready)
-                mediaPlayer?.setOnCompletionListener { onPlaybackComplete() }
-            } else {
+                mp.isLooping = false
+                if (earphonesConfirmed) {
+                    startBtn.isEnabled = true
+                }
+            }
+            
+            videoView?.setOnCompletionListener { 
+                Log.d("InflightSync", "Playback completed")
+                onPlaybackComplete() 
+            }
+            
+            videoView?.setOnErrorListener { mp, what, extra ->
+                Log.e("InflightSync", "MediaPlayer error: $what, extra: $extra")
                 audioReady = false
+                isMediaLoading = false
                 statusText.text = getString(R.string.audio_unavailable)
                 downloadPrompt.visibility = View.VISIBLE
+                
+                // Fallback attempt if URI is null or invalid
+                if (what == MediaPlayer.MEDIA_ERROR_UNKNOWN) {
+                    Log.d("InflightSync", "Retrying media load after error")
+                    loadMediaResource()
+                }
+                true
+            }
+
+            videoView?.setOnInfoListener { _, what, extra ->
+                Log.d("InflightSync", "MediaPlayer info: $what, extra: $extra")
+                false
             }
         } catch (e: Exception) {
+            Log.e("InflightSync", "Error in setupMediaPlayer", e)
             audioReady = false
             statusText.text = getString(R.string.audio_unavailable)
         }
     }
 
+    private fun loadMediaResource() {
+        if (audioReady || isMediaLoading) return
+        try {
+            isMediaLoading = true
+            // VideoView often needs to be VISIBLE to initialize its surface and trigger onPrepared
+            videoView?.visibility = View.VISIBLE
+            videoView?.alpha = 0.01f // Keep it effectively invisible but attached with a surface
+
+            val videoUri = Uri.parse("android.resource://$packageName/${R.raw.video}")
+            Log.d("InflightSync", "Loading media resource: $videoUri")
+            videoView?.setVideoURI(videoUri)
+        } catch (e: Exception) {
+            isMediaLoading = false
+            Log.e("InflightSync", "Failed to load media resource", e)
+        }
+    }
+
     private fun setupButtons() {
         enterCabinBtn.setOnClickListener {
+            Log.d("InflightSync", "Enter Cabin button clicked")
             transitionToMain()
         }
 
         confirmBtn.setOnClickListener {
+            Log.d("InflightSync", "Confirm Headset button clicked. audioReady=$audioReady")
             earphonesConfirmed = true
             earphoneRow.visibility = View.GONE
             playbackControls.visibility = View.VISIBLE
-            startBtn.isEnabled = audioReady
+            
+            if (audioReady) {
+                startBtn.isEnabled = true
+            } else {
+                startBtn.isEnabled = false
+                statusText.text = "Waiting for audio to be ready..."
+                // Try to load media again if it hasn't prepared yet
+                loadMediaResource()
+            }
         }
 
         startBtn.setOnClickListener {
@@ -237,6 +299,10 @@ class MainActivity : AppCompatActivity() {
                 override fun onAnimationEnd(animation: Animation?) {
                     welcomeScreen.visibility = View.GONE
                     mainContent.visibility = View.VISIBLE
+                    
+                    // Re-trigger media loading once visibility is set
+                    loadMediaResource()
+
                     val fadeIn = AlphaAnimation(0f, 1f).apply { duration = 800 }
                     mainContent.startAnimation(fadeIn)
                 }
@@ -246,59 +312,99 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startConfigPolling() {
-        val pollTask = object : Runnable {
+        // UI Update Task (Every 1 second)
+        val uiTask = object : Runnable {
             override fun run() {
-                fetchRemoteConfig()
-                handler.postDelayed(this, 15000) 
+                updateDiagnosticTimes()
+                handler.postDelayed(this, 1000)
             }
         }
-        fetchRunnable = pollTask
-        handler.post(pollTask)
+        handler.post(uiTask)
+
+        // Network Polling Task (Every 15 seconds)
+        val networkTask = object : Runnable {
+            override fun run() {
+                fetchRemoteConfig()
+                handler.postDelayed(this, 15000)
+            }
+        }
+        fetchRunnable = networkTask
+        handler.post(networkTask)
+    }
+
+    private fun getSyncedTime(): Long = System.currentTimeMillis() + serverClockOffset
+
+    private fun updateDiagnosticTimes() {
+        val now = getSyncedTime()
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val deviceTime = sdf.format(now)
+        
+        val targetSdf = SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault())
+        targetSdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        val targetTime = targetSdf.format(currentStartTime)
+        
+        handler.post {
+            deviceTimeText.text = "Device: $deviceTime"
+            targetTimeText.text = "Target: $targetTime"
+        }
     }
 
     private fun fetchRemoteConfig() {
         val request = Request.Builder()
-            .url(apiUrl)
+            .url("$apiUrl?t=${System.currentTimeMillis()}")
             .cacheControl(okhttp3.CacheControl.FORCE_NETWORK)
-            .header("Accept", "application/vnd.github.v3+json")
+            .addHeader("Cache-Control", "no-cache")
             .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("InflightSync", "Network error")
+                Log.e("InflightSync", "Network error: ${e.message}")
                 handler.post { updateLiveStatus(false) }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
+                    Log.e("InflightSync", "Fetch failed: ${response.code}")
                     handler.post { updateLiveStatus(false) }
                     return
                 }
 
                 try {
-                    val json = JSONObject(rawBody)
-                    val sha = json.getString("sha")
-                    val contentBase64 = json.getString("content").replace("\n", "")
-                    val decodedBytes = android.util.Base64.decode(contentBase64, android.util.Base64.DEFAULT)
-                    val configJson = JSONObject(String(decodedBytes))
+                    // Sync clock using Date header
+                    val serverDateStr = response.header("Date")
+                    if (serverDateStr != null) {
+                        try {
+                            val serverSdf = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US)
+                            val serverDate = serverSdf.parse(serverDateStr)
+                            if (serverDate != null) {
+                                serverClockOffset = serverDate.time - System.currentTimeMillis()
+                                Log.d("InflightSync", "Clock synced. Offset: ${serverClockOffset}ms")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("InflightSync", "Date header parse error")
+                        }
+                    }
+
+                    val configJson = JSONObject(rawBody)
                     val timeStr = configJson.getString("startTime")
+                    Log.d("InflightSync", "Fetched raw time string: $timeStr")
                     
-                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                     sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                     val date = sdf.parse(timeStr) ?: return
                     val newTime = date.time
 
                     handler.post {
                         updateLiveStatus(true)
-                        val isFirstFetch = currentFileSha.isEmpty()
-                        val shaChanged = sha != currentFileSha
+                        val isFirstFetch = lastFetchedTimeStr.isEmpty()
+                        val timeChanged = timeStr != lastFetchedTimeStr
                         val timeDrift = Math.abs(currentStartTime - newTime)
                         
-                        // Only re-schedule if the SHA changed or the time drift is significant (> 2s)
-                        if (isFirstFetch || shaChanged || timeDrift > 2000) {
-                            Log.d("InflightSync", "Remote Sync Update: $timeStr (Drift: ${timeDrift}ms)")
-                            currentFileSha = sha
+                        // Re-schedule if time string changed or significant drift (> 1s)
+                        if (isFirstFetch || timeChanged || timeDrift > 1000) {
+                            Log.d("InflightSync", "Remote Sync Update: $timeStr (Offset: ${serverClockOffset}ms)")
+                            lastFetchedTimeStr = timeStr
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             
@@ -308,7 +414,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e("InflightSync", "Parse error")
+                    Log.e("InflightSync", "JSON parse error: $rawBody")
                 }
             }
         })
@@ -317,29 +423,36 @@ class MainActivity : AppCompatActivity() {
     private fun schedulePlayback() {
         clearTasks()
         try {
-            mediaPlayer?.let { 
+            videoView?.let { 
                 if (it.isPlaying) it.pause() 
                 it.seekTo(0)
             }
         } catch (e: Exception) { }
 
         playerLayout.visibility = View.GONE
+        // Ensure surface is maintained for immediate start while keeping it effectively invisible
+        videoView?.visibility = View.VISIBLE
+        videoView?.alpha = 0.01f
+        dadiImage.visibility = View.VISIBLE
 
-        val now = System.currentTimeMillis()
+        val now = getSyncedTime()
         val startDelay = currentStartTime - now
-        val duration = mediaPlayer?.duration?.toLong() ?: 0L
+        val duration = videoView?.duration?.toLong()?.coerceAtLeast(0L) ?: 0L
         val endDelay = (currentStartTime + duration) - now
 
         if (startDelay > 0) {
-            var remainingSecs = (startDelay / 1000)
             val tick = object : Runnable {
                 override fun run() {
                     if (!isPlaybackStartedByUser) return
                     
-                    if (remainingSecs > 0) {
-                        statusText.text = "Starts in ${formatCountdown(remainingSecs)}"
-                        remainingSecs--
-                        handler.postDelayed(this, 1000)
+                    val nowMs = getSyncedTime()
+                    val remainingMs = currentStartTime - nowMs
+                    
+                    if (remainingMs > 0) {
+                        statusText.text = "Starts in ${formatCountdown((remainingMs + 999) / 1000)}"
+                        // Self-correcting tick to stay synchronized with system clock
+                        val delayUntilNextSec = 1000 - (nowMs % 1000)
+                        handler.postDelayed(this, delayUntilNextSec)
                     } else {
                         statusText.text = "Starting shortly..."
                     }
@@ -349,7 +462,11 @@ class MainActivity : AppCompatActivity() {
             handler.post(tick)
 
             playbackRunnable = Runnable { 
-                if (isPlaybackStartedByUser) startAudio(0) 
+                if (isPlaybackStartedByUser) {
+                    val nowMs = getSyncedTime()
+                    val msLate = (nowMs - currentStartTime).toInt().coerceAtLeast(0)
+                    startAudio(msLate)
+                }
             }
             handler.postDelayed(playbackRunnable!!, startDelay)
         } else if (endDelay > 0) {
@@ -361,11 +478,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAudio(positionMs: Int) {
-        mediaPlayer?.let {
+        videoView?.let { v ->
             try {
-                it.seekTo(positionMs)
-                it.start()
-                statusText.text = "Enjoying Cabin Audio"
+                v.animate().cancel()
+                v.alpha = 0.01f
+                v.visibility = View.VISIBLE
+                
+                dadiImage.animate().cancel()
+                
+                // Smoothly fade in the video and fade out the placeholder
+                v.animate().alpha(1.0f).setDuration(1000).start()
+                dadiImage.animate().alpha(0f).setDuration(1000).withEndAction {
+                    dadiImage.visibility = View.INVISIBLE
+                }.start()
+
+                v.seekTo(positionMs)
+                v.start()
+                statusText.text = "Enjoying Cabin Journey"
                 playerLayout.visibility = View.VISIBLE
                 startProgressUpdates()
             } catch (e: Exception) {
@@ -378,22 +507,21 @@ class MainActivity : AppCompatActivity() {
         progressRunnable?.let { handler.removeCallbacks(it) }
         val tick = object : Runnable {
             override fun run() {
-                val player = mediaPlayer ?: return
+                val player = videoView ?: return
                 if (!isPlaybackStartedByUser) return
 
-                val now = System.currentTimeMillis()
+                val now = getSyncedTime()
                 val durationMs = player.duration.toLong()
                 val currentMs = player.currentPosition.toLong()
                 
                 // 1. Absolute Time Completion Check
-                // If current time is past the scheduled end time, finish.
-                if (now >= (currentStartTime + durationMs)) {
+                if (now >= (currentStartTime + durationMs) && durationMs > 0) {
                     onPlaybackComplete()
                     return
                 }
 
                 // 2. Player State Completion Check
-                if (!player.isPlaying && currentMs >= (durationMs - 2000)) {
+                if (!player.isPlaying && currentMs >= (durationMs - 2000) && durationMs > 0) {
                     onPlaybackComplete()
                     return
                 }
@@ -424,12 +552,19 @@ class MainActivity : AppCompatActivity() {
     private fun stopPlayback() {
         isPlaybackStartedByUser = false
         clearTasks()
-        mediaPlayer?.apply {
+        videoView?.animate()?.cancel()
+        videoView?.apply {
             try {
                 if (isPlaying) pause()
                 seekTo(0)
+                // Keep surface ready for future playback
+                visibility = View.VISIBLE
+                alpha = 0.01f
             } catch (e: Exception) {}
         }
+        dadiImage.animate()?.cancel()
+        dadiImage.alpha = 1.0f
+        dadiImage.visibility = View.VISIBLE
         statusText.text = getString(R.string.stopped)
         startBtn.isEnabled = true
         stopBtn.isEnabled = false
@@ -454,12 +589,20 @@ class MainActivity : AppCompatActivity() {
 
         playerLayout.visibility = View.GONE
         
-        mediaPlayer?.apply {
+        // Ensure surface is maintained for immediate start while keeping it effectively invisible
+        videoView?.animate()?.cancel()
+        videoView?.apply {
             try {
-                if (isPlaying) stop()
+                if (isPlaying) pause()
                 seekTo(0)
+                visibility = View.VISIBLE
+                alpha = 0.01f
             } catch (e: Exception) {}
         }
+        
+        dadiImage.animate()?.cancel()
+        dadiImage.alpha = 1.0f
+        dadiImage.visibility = View.VISIBLE
     }
 
     private fun clearTasks() {
@@ -497,8 +640,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         clearTasks()
         fetchRunnable?.let { handler.removeCallbacks(it) }
-        mediaPlayer?.release()
-        mediaPlayer = null
+        videoView?.stopPlayback()
+        videoView = null
         try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (_: Exception) {}
     }
 }
