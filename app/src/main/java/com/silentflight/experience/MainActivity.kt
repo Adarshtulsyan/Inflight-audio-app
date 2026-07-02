@@ -484,13 +484,11 @@ class MainActivity : AppCompatActivity() {
                 v.alpha = 0.01f
                 v.visibility = View.VISIBLE
                 
-                dadiImage.animate().cancel()
-                
-                // Smoothly fade in the video and fade out the placeholder
+                // Smoothly fade in the video while keeping the dadiImage visible
                 v.animate().alpha(1.0f).setDuration(1000).start()
-                dadiImage.animate().alpha(0f).setDuration(1000).withEndAction {
-                    dadiImage.visibility = View.INVISIBLE
-                }.start()
+                dadiImage.animate().cancel()
+                dadiImage.alpha = 1.0f
+                dadiImage.visibility = View.VISIBLE
 
                 v.seekTo(positionMs)
                 v.start()
