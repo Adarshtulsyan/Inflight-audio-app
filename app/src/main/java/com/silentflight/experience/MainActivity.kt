@@ -246,7 +246,7 @@ class MainActivity : AppCompatActivity() {
             videoView?.visibility = View.VISIBLE
             videoView?.alpha = 0.01f // Keep it effectively invisible but attached with a surface
 
-            val videoUri = Uri.parse("android.resource://$packageName/${R.raw.video}")
+            val videoUri = Uri.parse("android.resource://$packageName/${R.raw.dadi_audio}")
             Log.d("InflightSync", "Loading media resource: $videoUri")
             videoView?.setVideoURI(videoUri)
         } catch (e: Exception) {
