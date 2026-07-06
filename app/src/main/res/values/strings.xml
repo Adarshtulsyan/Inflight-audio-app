@@ -9,8 +9,8 @@
     <string name="confirm_earphones">Confirm Headset</string>
     <string name="start">Commence Journey</string>
     <string name="stop">End Session</string>
-    <string name="checking_audio">Synchronizing with cabin…</string>
-    <string name="ready">System Ready for Takeoff</string>
+    <string name="checking_audio">Syncing journey details…</string>
+    <string name="ready">Ready for Journey</string>
     <string name="stopped">Journey Paused</string>
     <string name="finished">Journey Completed</string>
     <string name="thank_you_message">We thank you for joining us in this spiritual journey. May Dadi Maa bless you. Jai Dadi Ki.</string>

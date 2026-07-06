@@ -50,6 +50,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
 
     private var isPlaybackStartedByUser = false
+    private var isConfigLoaded = false
+    private var isLive = false
     private var earphonesConfirmed = false
     private var audioReady = false
     private var isMediaLoading = false
@@ -61,13 +63,9 @@ class MainActivity : AppCompatActivity() {
     private val apiUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
 
     @Volatile
-    private var currentStartTime: Long = 0L
+    private var currentStartTime: Long = Long.MAX_VALUE
     private var serverClockOffset: Long = 0L
     private var lastFetchedTimeStr: String = ""
-
-    private val defaultStartTime: Long by lazy {
-        System.currentTimeMillis() + 120000 // 2 minutes from now
-    }
 
     private lateinit var welcomeScreen: View
     private lateinit var mainContent: View
@@ -107,8 +105,6 @@ class MainActivity : AppCompatActivity() {
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         
-        currentStartTime = prefs.getLong("start_time", defaultStartTime)
-
         welcomeScreen    = findViewById(R.id.welcomeScreen)
         mainContent      = findViewById(R.id.mainContent)
         enterCabinBtn    = findViewById(R.id.enterCabinBtn)
@@ -131,6 +127,15 @@ class MainActivity : AppCompatActivity() {
         currentTimeText  = findViewById(R.id.currentTimeText)
         remainingTimeText = findViewById(R.id.remainingTimeText)
         downloadPrompt   = findViewById(R.id.downloadPrompt)
+
+        if (prefs.contains("start_time")) {
+            currentStartTime = prefs.getLong("start_time", 0L)
+            isConfigLoaded = true
+        } else {
+            currentStartTime = Long.MAX_VALUE
+            isConfigLoaded = false
+        }
+        statusText.text = getString(R.string.checking_audio)
         
         setupInitialState()
         setupButtons()
@@ -147,12 +152,10 @@ class MainActivity : AppCompatActivity() {
             Log.e("InflightSync", "Network callback registration failed")
         }
         
-        // Initial checks - Move to background to avoid blocking main thread
-        handler.postDelayed({
-            val isOnline = try { isNetworkAvailable() } catch (e: Exception) { false }
-            updateLiveStatus(isOnline)
-            startConfigPolling()
-        }, 500)
+        // Initial checks
+        val isOnline = try { isNetworkAvailable() } catch (e: Exception) { false }
+        updateLiveStatus(isOnline)
+        startConfigPolling()
     }
 
     private fun setupInitialState() {
@@ -162,19 +165,28 @@ class MainActivity : AppCompatActivity() {
         earphoneRow.visibility = View.VISIBLE
         playbackControls.visibility = View.GONE
         playerLayout.visibility = View.GONE
+        startBtn.isEnabled = false
+        stopBtn.isEnabled = false
         updateHeadsetStatus()
     }
 
     private fun updateLiveStatus(online: Boolean) {
         if (online) {
-            statusBadge.text = "LIVE"
-            statusBadge.setTextColor(ContextCompat.getColor(this, R.color.gold))
-            statusBadge.alpha = 1.0f
+            if (isLive) {
+                statusBadge.text = "LIVE"
+                statusBadge.setTextColor(ContextCompat.getColor(this, R.color.gold))
+                statusBadge.alpha = 1.0f
+            } else {
+                statusBadge.text = "SYNCING"
+                statusBadge.setTextColor(ContextCompat.getColor(this, R.color.gold))
+                statusBadge.alpha = 0.7f
+            }
         } else {
             statusBadge.text = "OFFLINE"
             statusBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             statusBadge.alpha = 0.5f
         }
+        refreshStatusText()
     }
 
     private fun isNetworkAvailable(): Boolean {
@@ -200,11 +212,8 @@ class MainActivity : AppCompatActivity() {
                 Log.d("InflightSync", "MediaPlayer prepared. Duration: ${mp.duration}")
                 audioReady = true
                 isMediaLoading = false
-                statusText.text = getString(R.string.ready)
+                refreshStatusText()
                 mp.isLooping = false
-                if (earphonesConfirmed) {
-                    startBtn.isEnabled = true
-                }
             }
             
             videoView?.setOnCompletionListener { 
@@ -267,11 +276,8 @@ class MainActivity : AppCompatActivity() {
             earphoneRow.visibility = View.GONE
             playbackControls.visibility = View.VISIBLE
             
-            if (audioReady) {
-                startBtn.isEnabled = true
-            } else {
-                startBtn.isEnabled = false
-                statusText.text = "Waiting for audio to be ready..."
+            refreshStatusText()
+            if (!audioReady) {
                 // Try to load media again if it hasn't prepared yet
                 loadMediaResource()
             }
@@ -316,6 +322,7 @@ class MainActivity : AppCompatActivity() {
         val uiTask = object : Runnable {
             override fun run() {
                 updateDiagnosticTimes()
+                refreshStatusText()
                 handler.postDelayed(this, 1000)
             }
         }
@@ -339,9 +346,14 @@ class MainActivity : AppCompatActivity() {
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         val deviceTime = sdf.format(now)
         
-        val targetSdf = SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault())
-        targetSdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-        val targetTime = targetSdf.format(currentStartTime)
+        val targetTime: String
+        if (currentStartTime == Long.MAX_VALUE) {
+            targetTime = "Waiting for Sync"
+        } else {
+            val targetSdf = SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault())
+            targetSdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+            targetTime = targetSdf.format(currentStartTime)
+        }
         
         handler.post {
             deviceTimeText.text = "Device: $deviceTime"
@@ -359,14 +371,20 @@ class MainActivity : AppCompatActivity() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("InflightSync", "Network error: ${e.message}")
-                handler.post { updateLiveStatus(false) }
+                handler.post { 
+                    isLive = false
+                    updateLiveStatus(isNetworkAvailable()) 
+                }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
                     Log.e("InflightSync", "Fetch failed: ${response.code}")
-                    handler.post { updateLiveStatus(false) }
+                    handler.post { 
+                        isLive = false
+                        updateLiveStatus(isNetworkAvailable()) 
+                    }
                     return
                 }
 
@@ -396,10 +414,15 @@ class MainActivity : AppCompatActivity() {
                     val newTime = date.time
 
                     handler.post {
+                        isLive = true
+                        isConfigLoaded = true
                         updateLiveStatus(true)
+                        
                         val isFirstFetch = lastFetchedTimeStr.isEmpty()
                         val timeChanged = timeStr != lastFetchedTimeStr
                         val timeDrift = Math.abs(currentStartTime - newTime)
+
+                        refreshStatusText()
                         
                         // Re-schedule if time string changed or significant drift (> 1s)
                         if (isFirstFetch || timeChanged || timeDrift > 1000) {
@@ -421,6 +444,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun schedulePlayback() {
+        if (!isConfigLoaded) {
+            statusText.text = "Waiting for Sync..."
+            return
+        }
+        
         clearTasks()
         try {
             videoView?.let { 
@@ -437,8 +465,10 @@ class MainActivity : AppCompatActivity() {
 
         val now = getSyncedTime()
         val startDelay = currentStartTime - now
-        val duration = videoView?.duration?.toLong()?.coerceAtLeast(0L) ?: 0L
-        val endDelay = (currentStartTime + duration) - now
+        
+        // Match iOS logic: use player duration if available, else fallback to 20 mins (1,200,000 ms)
+        val audioDuration = if ((videoView?.duration ?: 0) > 0) videoView?.duration?.toLong() ?: 0L else 1200000L
+        val endDelay = (currentStartTime + audioDuration) - now
 
         if (startDelay > 0) {
             val tick = object : Runnable {
@@ -563,8 +593,9 @@ class MainActivity : AppCompatActivity() {
         dadiImage.animate()?.cancel()
         dadiImage.alpha = 1.0f
         dadiImage.visibility = View.VISIBLE
+        
+        refreshStatusText()
         statusText.text = getString(R.string.stopped)
-        startBtn.isEnabled = true
         stopBtn.isEnabled = false
         playerLayout.visibility = View.GONE
     }
@@ -610,6 +641,50 @@ class MainActivity : AppCompatActivity() {
         countdownRunnable = null
         progressRunnable = null
         playbackRunnable = null
+    }
+
+    private fun refreshStatusText() {
+        if (isPlaybackStartedByUser || 
+            statusText.text == getString(R.string.finished) || 
+            statusText.text == getString(R.string.stopped)) return
+
+        val online = try { isNetworkAvailable() } catch (e: Exception) { false }
+        
+        val syncRequired = !online && !isConfigLoaded
+        
+        var isActuallyReady = false
+        
+        val newStatus = when {
+            // 1. If we are currently online but haven't successfully synced in this session, show Syncing.
+            online && !isLive -> getString(R.string.checking_audio)
+            
+            // 2. If we've successfully synced (or are offline with a cached config), determine if we're ready.
+            isLive || isConfigLoaded -> {
+                if (online && !isLive) {
+                    getString(R.string.checking_audio)
+                } else if (!audioReady && earphonesConfirmed) {
+                    "Waiting for audio to be ready..."
+                } else {
+                    isActuallyReady = true
+                    getString(R.string.ready)
+                }
+            }
+            
+            // 3. If we are offline and have NO cache.
+            syncRequired -> "Sync required (Check Internet)"
+            
+            else -> getString(R.string.checking_audio)
+        }
+
+        if (statusText.text != newStatus) {
+            statusText.text = newStatus
+        }
+
+        // Update button states based on consolidated sync and audio readiness
+        if (earphonesConfirmed) {
+            startBtn.isEnabled = isActuallyReady
+            stopBtn.isEnabled = false
+        }
     }
 
     private fun formatCountdown(totalSecs: Long): String {
