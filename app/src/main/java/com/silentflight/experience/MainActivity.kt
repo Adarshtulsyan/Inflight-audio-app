@@ -107,7 +107,12 @@ class MainActivity : AppCompatActivity() {
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         
-        currentStartTime = prefs.getLong("start_time", defaultStartTime)
+        if (prefs.contains("start_time")) {
+            currentStartTime = prefs.getLong("start_time", 0L)
+            statusText.text = getString(R.string.ready)
+        } else {
+            currentStartTime = defaultStartTime
+        }
 
         welcomeScreen    = findViewById(R.id.welcomeScreen)
         mainContent      = findViewById(R.id.mainContent)
@@ -400,6 +405,10 @@ class MainActivity : AppCompatActivity() {
                         val isFirstFetch = lastFetchedTimeStr.isEmpty()
                         val timeChanged = timeStr != lastFetchedTimeStr
                         val timeDrift = Math.abs(currentStartTime - newTime)
+
+                        if (!isPlaybackStartedByUser && statusText.text == getString(R.string.checking_audio)) {
+                            statusText.text = getString(R.string.ready)
+                        }
                         
                         // Re-schedule if time string changed or significant drift (> 1s)
                         if (isFirstFetch || timeChanged || timeDrift > 1000) {
