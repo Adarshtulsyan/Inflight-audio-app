@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
 
     private var isPlaybackStartedByUser = false
+    private var isConfigLoaded = false
     private var earphonesConfirmed = false
     private var audioReady = false
     private var isMediaLoading = false
@@ -107,13 +108,6 @@ class MainActivity : AppCompatActivity() {
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         
-        if (prefs.contains("start_time")) {
-            currentStartTime = prefs.getLong("start_time", 0L)
-            statusText.text = getString(R.string.ready)
-        } else {
-            currentStartTime = defaultStartTime
-        }
-
         welcomeScreen    = findViewById(R.id.welcomeScreen)
         mainContent      = findViewById(R.id.mainContent)
         enterCabinBtn    = findViewById(R.id.enterCabinBtn)
@@ -136,6 +130,14 @@ class MainActivity : AppCompatActivity() {
         currentTimeText  = findViewById(R.id.currentTimeText)
         remainingTimeText = findViewById(R.id.remainingTimeText)
         downloadPrompt   = findViewById(R.id.downloadPrompt)
+
+        if (prefs.contains("start_time")) {
+            currentStartTime = prefs.getLong("start_time", 0L)
+            isConfigLoaded = true
+            statusText.text = getString(R.string.ready)
+        } else {
+            currentStartTime = defaultStartTime
+        }
         
         setupInitialState()
         setupButtons()
@@ -402,11 +404,12 @@ class MainActivity : AppCompatActivity() {
 
                     handler.post {
                         updateLiveStatus(true)
+                        isConfigLoaded = true
                         val isFirstFetch = lastFetchedTimeStr.isEmpty()
                         val timeChanged = timeStr != lastFetchedTimeStr
                         val timeDrift = Math.abs(currentStartTime - newTime)
 
-                        if (!isPlaybackStartedByUser && statusText.text == getString(R.string.checking_audio)) {
+                        if (!isPlaybackStartedByUser) {
                             statusText.text = getString(R.string.ready)
                         }
                         
