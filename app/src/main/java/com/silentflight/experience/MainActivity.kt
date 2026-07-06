@@ -131,12 +131,11 @@ class MainActivity : AppCompatActivity() {
         if (prefs.contains("start_time")) {
             currentStartTime = prefs.getLong("start_time", 0L)
             isConfigLoaded = true
-            statusText.text = getString(R.string.ready)
         } else {
             currentStartTime = Long.MAX_VALUE
             isConfigLoaded = false
-            statusText.text = getString(R.string.checking_audio)
         }
+        statusText.text = getString(R.string.checking_audio)
         
         setupInitialState()
         setupButtons()
@@ -153,12 +152,10 @@ class MainActivity : AppCompatActivity() {
             Log.e("InflightSync", "Network callback registration failed")
         }
         
-        // Initial checks - Move to background to avoid blocking main thread
-        handler.postDelayed({
-            val isOnline = try { isNetworkAvailable() } catch (e: Exception) { false }
-            updateLiveStatus(isOnline)
-            startConfigPolling()
-        }, 500)
+        // Initial checks
+        val isOnline = try { isNetworkAvailable() } catch (e: Exception) { false }
+        updateLiveStatus(isOnline)
+        startConfigPolling()
     }
 
     private fun setupInitialState() {
@@ -168,6 +165,8 @@ class MainActivity : AppCompatActivity() {
         earphoneRow.visibility = View.VISIBLE
         playbackControls.visibility = View.GONE
         playerLayout.visibility = View.GONE
+        startBtn.isEnabled = false
+        stopBtn.isEnabled = false
         updateHeadsetStatus()
     }
 
@@ -187,6 +186,7 @@ class MainActivity : AppCompatActivity() {
             statusBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             statusBadge.alpha = 0.5f
         }
+        refreshStatusText()
     }
 
     private fun isNetworkAvailable(): Boolean {
@@ -212,11 +212,8 @@ class MainActivity : AppCompatActivity() {
                 Log.d("InflightSync", "MediaPlayer prepared. Duration: ${mp.duration}")
                 audioReady = true
                 isMediaLoading = false
-                statusText.text = getString(R.string.ready)
+                refreshStatusText()
                 mp.isLooping = false
-                if (earphonesConfirmed) {
-                    startBtn.isEnabled = true
-                }
             }
             
             videoView?.setOnCompletionListener { 
@@ -279,11 +276,8 @@ class MainActivity : AppCompatActivity() {
             earphoneRow.visibility = View.GONE
             playbackControls.visibility = View.VISIBLE
             
-            if (audioReady) {
-                startBtn.isEnabled = true
-            } else {
-                startBtn.isEnabled = false
-                statusText.text = "Waiting for audio to be ready..."
+            refreshStatusText()
+            if (!audioReady) {
                 // Try to load media again if it hasn't prepared yet
                 loadMediaResource()
             }
@@ -328,6 +322,7 @@ class MainActivity : AppCompatActivity() {
         val uiTask = object : Runnable {
             override fun run() {
                 updateDiagnosticTimes()
+                refreshStatusText()
                 handler.postDelayed(this, 1000)
             }
         }
@@ -427,9 +422,7 @@ class MainActivity : AppCompatActivity() {
                         val timeChanged = timeStr != lastFetchedTimeStr
                         val timeDrift = Math.abs(currentStartTime - newTime)
 
-                        if (!isPlaybackStartedByUser) {
-                            statusText.text = getString(R.string.ready)
-                        }
+                        refreshStatusText()
                         
                         // Re-schedule if time string changed or significant drift (> 1s)
                         if (isFirstFetch || timeChanged || timeDrift > 1000) {
@@ -600,8 +593,9 @@ class MainActivity : AppCompatActivity() {
         dadiImage.animate()?.cancel()
         dadiImage.alpha = 1.0f
         dadiImage.visibility = View.VISIBLE
+        
+        refreshStatusText()
         statusText.text = getString(R.string.stopped)
-        startBtn.isEnabled = true
         stopBtn.isEnabled = false
         playerLayout.visibility = View.GONE
     }
@@ -647,6 +641,50 @@ class MainActivity : AppCompatActivity() {
         countdownRunnable = null
         progressRunnable = null
         playbackRunnable = null
+    }
+
+    private fun refreshStatusText() {
+        if (isPlaybackStartedByUser || 
+            statusText.text == getString(R.string.finished) || 
+            statusText.text == getString(R.string.stopped)) return
+
+        val online = try { isNetworkAvailable() } catch (e: Exception) { false }
+        
+        val syncRequired = !online && !isConfigLoaded
+        
+        var isActuallyReady = false
+        
+        val newStatus = when {
+            // 1. If we are currently online but haven't successfully synced in this session, show Syncing.
+            online && !isLive -> getString(R.string.checking_audio)
+            
+            // 2. If we've successfully synced (or are offline with a cached config), determine if we're ready.
+            isLive || isConfigLoaded -> {
+                if (online && !isLive) {
+                    getString(R.string.checking_audio)
+                } else if (!audioReady && earphonesConfirmed) {
+                    "Waiting for audio to be ready..."
+                } else {
+                    isActuallyReady = true
+                    getString(R.string.ready)
+                }
+            }
+            
+            // 3. If we are offline and have NO cache.
+            syncRequired -> "Sync required (Check Internet)"
+            
+            else -> getString(R.string.checking_audio)
+        }
+
+        if (statusText.text != newStatus) {
+            statusText.text = newStatus
+        }
+
+        // Update button states based on consolidated sync and audio readiness
+        if (earphonesConfirmed) {
+            startBtn.isEnabled = isActuallyReady
+            stopBtn.isEnabled = false
+        }
     }
 
     private fun formatCountdown(totalSecs: Long): String {
