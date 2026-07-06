@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
 
     private var isPlaybackStartedByUser = false
     private var isConfigLoaded = false
+    private var isLive = false
     private var earphonesConfirmed = false
     private var audioReady = false
     private var isMediaLoading = false
@@ -62,13 +63,9 @@ class MainActivity : AppCompatActivity() {
     private val apiUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
 
     @Volatile
-    private var currentStartTime: Long = 0L
+    private var currentStartTime: Long = Long.MAX_VALUE
     private var serverClockOffset: Long = 0L
     private var lastFetchedTimeStr: String = ""
-
-    private val defaultStartTime: Long by lazy {
-        System.currentTimeMillis() + 120000 // 2 minutes from now
-    }
 
     private lateinit var welcomeScreen: View
     private lateinit var mainContent: View
@@ -136,7 +133,9 @@ class MainActivity : AppCompatActivity() {
             isConfigLoaded = true
             statusText.text = getString(R.string.ready)
         } else {
-            currentStartTime = defaultStartTime
+            currentStartTime = Long.MAX_VALUE
+            isConfigLoaded = false
+            statusText.text = getString(R.string.checking_audio)
         }
         
         setupInitialState()
@@ -174,9 +173,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLiveStatus(online: Boolean) {
         if (online) {
-            statusBadge.text = "LIVE"
-            statusBadge.setTextColor(ContextCompat.getColor(this, R.color.gold))
-            statusBadge.alpha = 1.0f
+            if (isLive) {
+                statusBadge.text = "LIVE"
+                statusBadge.setTextColor(ContextCompat.getColor(this, R.color.gold))
+                statusBadge.alpha = 1.0f
+            } else {
+                statusBadge.text = "SYNCING"
+                statusBadge.setTextColor(ContextCompat.getColor(this, R.color.gold))
+                statusBadge.alpha = 0.7f
+            }
         } else {
             statusBadge.text = "OFFLINE"
             statusBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
@@ -346,9 +351,14 @@ class MainActivity : AppCompatActivity() {
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         val deviceTime = sdf.format(now)
         
-        val targetSdf = SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault())
-        targetSdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-        val targetTime = targetSdf.format(currentStartTime)
+        val targetTime: String
+        if (currentStartTime == Long.MAX_VALUE) {
+            targetTime = "Waiting for Sync"
+        } else {
+            val targetSdf = SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault())
+            targetSdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+            targetTime = targetSdf.format(currentStartTime)
+        }
         
         handler.post {
             deviceTimeText.text = "Device: $deviceTime"
@@ -366,14 +376,20 @@ class MainActivity : AppCompatActivity() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("InflightSync", "Network error: ${e.message}")
-                handler.post { updateLiveStatus(false) }
+                handler.post { 
+                    isLive = false
+                    updateLiveStatus(isNetworkAvailable()) 
+                }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val rawBody = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
                     Log.e("InflightSync", "Fetch failed: ${response.code}")
-                    handler.post { updateLiveStatus(false) }
+                    handler.post { 
+                        isLive = false
+                        updateLiveStatus(isNetworkAvailable()) 
+                    }
                     return
                 }
 
@@ -403,8 +419,10 @@ class MainActivity : AppCompatActivity() {
                     val newTime = date.time
 
                     handler.post {
-                        updateLiveStatus(true)
+                        isLive = true
                         isConfigLoaded = true
+                        updateLiveStatus(true)
+                        
                         val isFirstFetch = lastFetchedTimeStr.isEmpty()
                         val timeChanged = timeStr != lastFetchedTimeStr
                         val timeDrift = Math.abs(currentStartTime - newTime)
@@ -433,6 +451,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun schedulePlayback() {
+        if (!isConfigLoaded) {
+            statusText.text = "Waiting for Sync..."
+            return
+        }
+        
         clearTasks()
         try {
             videoView?.let { 
@@ -449,8 +472,10 @@ class MainActivity : AppCompatActivity() {
 
         val now = getSyncedTime()
         val startDelay = currentStartTime - now
-        val duration = videoView?.duration?.toLong()?.coerceAtLeast(0L) ?: 0L
-        val endDelay = (currentStartTime + duration) - now
+        
+        // Match iOS logic: use player duration if available, else fallback to 20 mins (1,200,000 ms)
+        val audioDuration = if ((videoView?.duration ?: 0) > 0) videoView?.duration?.toLong() ?: 0L else 1200000L
+        val endDelay = (currentStartTime + audioDuration) - now
 
         if (startDelay > 0) {
             val tick = object : Runnable {
