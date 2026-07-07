@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private var countdownRunnable: Runnable? = null
     private var progressRunnable: Runnable? = null
     private var playbackRunnable: Runnable? = null
+    private var uiRunnable: Runnable? = null
     private var fetchRunnable: Runnable? = null
 
     private val apiUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
@@ -65,8 +66,13 @@ class MainActivity : AppCompatActivity() {
     @Volatile
     private var currentStartTime: Long = Long.MAX_VALUE
     private var serverClockOffset: Long = 0L
+    @Volatile
     private var lastFetchedTimeStr: String = ""
-
+    @Volatile
+    private var lastSyncStr: String = "Never"
+    @Volatile
+    private var isFinished: Boolean = false
+    
     private lateinit var welcomeScreen: View
     private lateinit var mainContent: View
     private lateinit var enterCabinBtn: Button
@@ -326,13 +332,15 @@ class MainActivity : AppCompatActivity() {
                 handler.postDelayed(this, 1000)
             }
         }
+        uiRunnable = uiTask
         handler.post(uiTask)
 
-        // Network Polling Task (Every 15 seconds)
+        // Network Polling Task (Every 10 seconds)
         val networkTask = object : Runnable {
             override fun run() {
+                Log.d("InflightSync", "Triggering config poll...")
                 fetchRemoteConfig()
-                handler.postDelayed(this, 15000)
+                handler.postDelayed(this, 10000)
             }
         }
         fetchRunnable = networkTask
@@ -362,85 +370,112 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fetchRemoteConfig() {
+        val timestamp = System.currentTimeMillis()
+        val syncSdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        
+        // Append unique query params to force GitHub to bypass its edge cache
+        val urlWithCacheBust = "$apiUrl?cb=$timestamp"
+
         val request = Request.Builder()
-            .url("$apiUrl?t=${System.currentTimeMillis()}")
-            .cacheControl(okhttp3.CacheControl.FORCE_NETWORK)
-            .addHeader("Cache-Control", "no-cache")
+            .url(urlWithCacheBust)
+            .header("Cache-Control", "no-cache")
             .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("InflightSync", "Network error: ${e.message}")
+                Log.e("InflightSync", "Poll Failed: ${e.message}")
                 handler.post { 
+                    lastSyncStr = "${syncSdf.format(System.currentTimeMillis())} (Error: ${e.message})"
                     isLive = false
                     updateLiveStatus(isNetworkAvailable()) 
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
+                val responseTime = System.currentTimeMillis()
+                val serverDateHeader = response.header("Date")
                 val rawBody = response.body?.string() ?: ""
-                if (!response.isSuccessful) {
-                    Log.e("InflightSync", "Fetch failed: ${response.code}")
-                    handler.post { 
-                        isLive = false
-                        updateLiveStatus(isNetworkAvailable()) 
-                    }
-                    return
-                }
-
-                try {
-                    // Sync clock using Date header
-                    val serverDateStr = response.header("Date")
-                    if (serverDateStr != null) {
+                Log.d("InflightSync", "Raw Response: $rawBody")
+                
+                handler.post {
+                    lastSyncStr = syncSdf.format(responseTime)
+                    
+                    // Sync clock using Date header to prevent device time manipulation
+                    serverDateHeader?.let { dateStr ->
                         try {
-                            val serverSdf = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US)
-                            val serverDate = serverSdf.parse(serverDateStr)
-                            if (serverDate != null) {
-                                serverClockOffset = serverDate.time - System.currentTimeMillis()
-                                Log.d("InflightSync", "Clock synced. Offset: ${serverClockOffset}ms")
+                            val headerSdf = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US)
+                            headerSdf.timeZone = TimeZone.getTimeZone("GMT")
+                            val serverDate = headerSdf.parse(dateStr)
+                            serverDate?.let { date ->
+                                serverClockOffset = date.time - responseTime
+                                Log.d("InflightSync", "Server Clock Offset: $serverClockOffset ms")
                             }
                         } catch (e: Exception) {
-                            Log.e("InflightSync", "Date header parse error")
+                            Log.e("InflightSync", "Failed to parse Date header: $dateStr")
                         }
                     }
 
-                    val configJson = JSONObject(rawBody)
-                    val timeStr = configJson.getString("startTime")
-                    Log.d("InflightSync", "Fetched raw time string: $timeStr")
-                    
-                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-                    sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-                    val date = sdf.parse(timeStr) ?: return
-                    val newTime = date.time
+                    if (!response.isSuccessful) {
+                        lastSyncStr += " (HTTP ${response.code})"
+                        isLive = false
+                        updateLiveStatus(isNetworkAvailable()) 
+                        return@post
+                    }
 
-                    handler.post {
+                    try {
+                        val configJson = JSONObject(rawBody)
+                        val timeStr = configJson.optString("startTime", "").trim()
+                        
+                        if (timeStr.isEmpty()) {
+                            lastSyncStr += " (Missing Key)"
+                            return@post
+                        }
+                        
+                        // Use a more lenient parser or check for 'Z' suffix
+                        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+                        sdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+                        val date = sdf.parse(timeStr) ?: throw Exception("Parse failed")
+                        val newTime = date.time
+
                         isLive = true
                         isConfigLoaded = true
                         updateLiveStatus(true)
                         
-                        val isFirstFetch = lastFetchedTimeStr.isEmpty()
-                        val timeChanged = timeStr != lastFetchedTimeStr
-                        val timeDrift = Math.abs(currentStartTime - newTime)
-
-                        refreshStatusText()
-                        
-                        // Re-schedule if time string changed or significant drift (> 1s)
-                        if (isFirstFetch || timeChanged || timeDrift > 1000) {
-                            Log.d("InflightSync", "Remote Sync Update: $timeStr (Offset: ${serverClockOffset}ms)")
+                        if (timeStr != lastFetchedTimeStr) {
+                            Log.i("InflightSync", "New Time Synced: $timeStr")
                             lastFetchedTimeStr = timeStr
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             
+                            if (isFinished) {
+                                isFinished = false
+                                resetToReadyState()
+                            }
+
                             if (isPlaybackStartedByUser) {
                                 schedulePlayback()
                             }
                         }
+                    } catch (e: Exception) {
+                        Log.e("InflightSync", "Parse Error: ${e.message}")
+                        lastSyncStr += " (Parse Error)"
                     }
-                } catch (e: Exception) {
-                    Log.e("InflightSync", "JSON parse error: $rawBody")
                 }
             }
         })
+    }
+
+    private fun resetToReadyState() {
+        if (earphonesConfirmed) {
+            earphoneRow.visibility = View.GONE
+            playbackControls.visibility = View.VISIBLE
+        } else {
+            earphoneRow.visibility = View.VISIBLE
+            playbackControls.visibility = View.GONE
+        }
+        confirmBtn.visibility = View.VISIBLE
+        updateHeadsetStatus()
+        statusText.text = getString(R.string.ready)
     }
 
     private fun schedulePlayback() {
@@ -601,9 +636,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPlaybackComplete() {
-        if (!isPlaybackStartedByUser && statusText.text == getString(R.string.finished)) return
+        if (!isPlaybackStartedByUser && isFinished) return
         
         isPlaybackStartedByUser = false
+        isFinished = true
         clearTasks()
         statusText.text = getString(R.string.finished)
         
@@ -645,24 +681,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshStatusText() {
         if (isPlaybackStartedByUser || 
-            statusText.text == getString(R.string.finished) || 
+            isFinished ||
             statusText.text == getString(R.string.stopped)) return
 
         val online = try { isNetworkAvailable() } catch (e: Exception) { false }
         
-        val syncRequired = !online && !isConfigLoaded
-        
         var isActuallyReady = false
         
         val newStatus = when {
-            // 1. If we are currently online but haven't successfully synced in this session, show Syncing.
-            online && !isLive -> getString(R.string.checking_audio)
-            
-            // 2. If we've successfully synced (or are offline with a cached config), determine if we're ready.
-            isLive || isConfigLoaded -> {
-                if (online && !isLive) {
-                    getString(R.string.checking_audio)
-                } else if (!audioReady && earphonesConfirmed) {
+            // 1. If we have a configuration (live or cached), we are ready for the journey
+            isConfigLoaded || isLive -> {
+                if (!audioReady && earphonesConfirmed) {
                     "Waiting for audio to be ready..."
                 } else {
                     isActuallyReady = true
@@ -670,10 +699,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             
-            // 3. If we are offline and have NO cache.
-            syncRequired -> "Sync required (Check Internet)"
+            // 2. If online but haven't synced yet (and no cache)
+            online -> getString(R.string.checking_audio)
             
-            else -> getString(R.string.checking_audio)
+            // 3. Offline and no config
+            else -> "Sync required (Check Internet)"
         }
 
         if (statusText.text != newStatus) {
@@ -713,6 +743,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         clearTasks()
         fetchRunnable?.let { handler.removeCallbacks(it) }
+        uiRunnable?.let { handler.removeCallbacks(it) }
         videoView?.stopPlayback()
         videoView = null
         try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (_: Exception) {}
