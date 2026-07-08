@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var confirmBtn: Button
     private lateinit var startBtn: Button
     private lateinit var stopBtn: Button
+    private lateinit var replayBtn: Button
     private lateinit var statusText: TextView
     private lateinit var statusBadge: TextView
     private lateinit var deviceTimeText: TextView
@@ -123,6 +124,7 @@ class MainActivity : AppCompatActivity() {
         confirmBtn       = findViewById(R.id.confirmEarphonesBtn)
         startBtn         = findViewById(R.id.startBtn)
         stopBtn          = findViewById(R.id.stopBtn)
+        replayBtn        = findViewById(R.id.replayBtn)
         statusText       = findViewById(R.id.statusText)
         statusBadge      = findViewById(R.id.statusBadge)
         deviceTimeText   = findViewById(R.id.deviceTimeText)
@@ -300,6 +302,11 @@ class MainActivity : AppCompatActivity() {
             isPlaybackStartedByUser = false
             stopPlayback()
         }
+
+        replayBtn.setOnClickListener {
+            Log.d("InflightSync", "Replay button clicked")
+            replayJourney()
+        }
     }
 
     private fun transitionToMain() {
@@ -469,9 +476,11 @@ class MainActivity : AppCompatActivity() {
         if (earphonesConfirmed) {
             earphoneRow.visibility = View.GONE
             playbackControls.visibility = View.VISIBLE
+            replayBtn.visibility = View.GONE
         } else {
             earphoneRow.visibility = View.VISIBLE
             playbackControls.visibility = View.GONE
+            replayBtn.visibility = View.GONE
         }
         confirmBtn.visibility = View.VISIBLE
         updateHeadsetStatus()
@@ -635,6 +644,20 @@ class MainActivity : AppCompatActivity() {
         playerLayout.visibility = View.GONE
     }
 
+    private fun replayJourney() {
+        isFinished = false
+        earphonesConfirmed = true
+        isPlaybackStartedByUser = true
+        
+        earphoneRow.visibility = View.GONE
+        playbackControls.visibility = View.VISIBLE
+        replayBtn.visibility = View.GONE
+        
+        currentStartTime = getSyncedTime()
+        videoView?.seekTo(0)
+        startAudio(0)
+    }
+
     private fun onPlaybackComplete() {
         if (!isPlaybackStartedByUser && isFinished) return
         
@@ -647,6 +670,7 @@ class MainActivity : AppCompatActivity() {
         earphoneRow.visibility = View.VISIBLE
         playbackControls.visibility = View.GONE
         confirmBtn.visibility = View.GONE
+        replayBtn.visibility = View.VISIBLE
         
         earphoneText.text = getString(R.string.thank_you_message)
         earphoneText.setTextColor(ContextCompat.getColor(this, R.color.gold))

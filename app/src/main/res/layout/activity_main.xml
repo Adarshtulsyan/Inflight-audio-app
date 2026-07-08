@@ -367,6 +367,16 @@
                             android:textColor="@color/text_primary"
                             android:enabled="false" />
                     </LinearLayout>
+                    <Button
+                        android:id="@+id/replayBtn"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:background="@drawable/btn_confirm_bg"
+                        android:text="@string/replay_journey"
+                        android:textAllCaps="true"
+                        android:textColor="@color/background"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
                 </FrameLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
