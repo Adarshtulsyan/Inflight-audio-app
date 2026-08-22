@@ -511,7 +511,7 @@ class MainActivity : AppCompatActivity() {
         val startDelay = currentStartTime - now
         
         // Match iOS logic: use player duration if available, else fallback to 20 mins (1,200,000 ms)
-        val audioDuration = if ((videoView?.duration ?: 0) > 0) videoView?.duration?.toLong() ?: 0L else 6167248L
+        val audioDuration = if ((videoView?.duration ?: 0) > 0) videoView?.duration?.toLong() ?: 0L else 6178612L
         val endDelay = (currentStartTime + audioDuration) - now
 
         if (startDelay > 0) {
