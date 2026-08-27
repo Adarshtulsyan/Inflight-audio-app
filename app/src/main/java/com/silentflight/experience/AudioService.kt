@@ -54,30 +54,55 @@ class AudioService : Service() {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
+                
+                // Track resource and status
                 val videoUri = Uri.parse("android.resource://$packageName/${R.raw.dadi_audio}")
+                Log.d("AudioService", "Initializing MediaPlayer with resource: $videoUri")
+                
                 setDataSource(this@AudioService, videoUri)
+                
                 setOnPreparedListener { mp ->
+                    Log.d("AudioService", "MediaPlayer Prepared. Seeking to $position ms")
                     mp.seekTo(position)
                     mp.start()
                     
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        startForeground(NOTIFICATION_ID, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-                    } else {
-                        startForeground(NOTIFICATION_ID, createNotification())
+                    // Show notification for foreground status
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            startForeground(NOTIFICATION_ID, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                        } else {
+                            startForeground(NOTIFICATION_ID, createNotification())
+                        }
+                    } catch (e: Exception) {
+                        Log.e("AudioService", "Failed to start foreground", e)
                     }
                 }
+                
+                setOnErrorListener { mp, what, extra ->
+                    Log.e("AudioService", "MediaPlayer Error: what=$what, extra=$extra")
+                    // Handle LFS pointer issue if it occurs
+                    if (what == MediaPlayer.MEDIA_ERROR_UNKNOWN && extra == -2147483648) {
+                        Log.e("AudioService", "CRITICAL: Audio file unreadable. Likely a Git LFS pointer.")
+                    }
+                    stopPlayback()
+                    true
+                }
+                
                 setOnCompletionListener {
+                    Log.d("AudioService", "Playback Complete")
                     stopPlayback()
                     sendBroadcast(Intent("PLAYBACK_COMPLETE"))
                 }
+                
                 prepareAsync()
             }
         } catch (e: Exception) {
-            Log.e("AudioService", "Error starting playback", e)
+            Log.e("AudioService", "Exception in startPlayback", e)
         }
     }
 
     private fun stopPlayback() {
+        Log.d("AudioService", "Stopping Playback")
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null

@@ -47,7 +47,6 @@ class MainActivity : AppCompatActivity() {
     private var isLive = false
     private var earphonesConfirmed = false
     private var audioReady = false
-    private var isMediaLoading = false
     private var countdownRunnable: Runnable? = null
     private var progressRunnable: Runnable? = null
     private var playbackRunnable: Runnable? = null
@@ -56,6 +55,8 @@ class MainActivity : AppCompatActivity() {
 
     private val apiUrl = "https://raw.githubusercontent.com/Adarshtulsyan/Inflight-audio-app/main/config.json"
 
+    @Volatile
+    private var officialStartTime: Long = Long.MAX_VALUE
     @Volatile
     private var currentStartTime: Long = Long.MAX_VALUE
     private var serverClockOffset: Long = 0L
@@ -162,9 +163,11 @@ class MainActivity : AppCompatActivity() {
         downloadPrompt   = findViewById(R.id.downloadPrompt)
 
         if (prefs.contains("start_time")) {
-            currentStartTime = prefs.getLong("start_time", 0L)
+            officialStartTime = prefs.getLong("start_time", 0L)
+            currentStartTime = officialStartTime
             isConfigLoaded = true
         } else {
+            officialStartTime = Long.MAX_VALUE
             currentStartTime = Long.MAX_VALUE
             isConfigLoaded = false
         }
@@ -201,16 +204,6 @@ class MainActivity : AppCompatActivity() {
             addAction("PLAYBACK_STOPPED")
         }
         registerReceiver(playbackReceiver, filter, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Context.RECEIVER_NOT_EXPORTED else 0)
-
-        requestNotificationPermission()
-    }
-
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
-            }
-        }
     }
 
     private fun setupInitialState() {
@@ -338,12 +331,12 @@ class MainActivity : AppCompatActivity() {
         val deviceTime = sdf.format(now)
         
         val targetTime: String
-        if (currentStartTime == Long.MAX_VALUE) {
+        if (officialStartTime == Long.MAX_VALUE) {
             targetTime = "Waiting for Sync"
         } else {
             val targetSdf = SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault())
             targetSdf.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-            targetTime = targetSdf.format(currentStartTime)
+            targetTime = targetSdf.format(officialStartTime)
         }
         
         handler.post {
@@ -413,6 +406,7 @@ class MainActivity : AppCompatActivity() {
                         
                         if (timeStr != lastFetchedTimeStr) {
                             lastFetchedTimeStr = timeStr
+                            officialStartTime = newTime
                             currentStartTime = newTime
                             prefs.edit().putLong("start_time", newTime).apply()
                             
