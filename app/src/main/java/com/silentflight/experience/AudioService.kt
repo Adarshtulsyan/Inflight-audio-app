@@ -15,6 +15,7 @@ class AudioService : Service() {
 
     private var mediaPlayer: MediaPlayer? = null
     private val binder = AudioBinder()
+    private var isPrepared = false
     
     private val CHANNEL_ID = "AudioPlaybackChannel"
     private val NOTIFICATION_ID = 1
@@ -32,6 +33,18 @@ class AudioService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
+        
+        // Immediate startForeground for Android OS satisfaction
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, createNotification("Enjoying Cabin Journey"), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(NOTIFICATION_ID, createNotification("Enjoying Cabin Journey"))
+            }
+        } catch (e: Exception) {
+            Log.e("AudioService", "startForeground failed", e)
+        }
+
         when (action) {
             "START_PLAYBACK" -> {
                 val position = intent.getIntExtra("POSITION", 0)
@@ -46,6 +59,7 @@ class AudioService : Service() {
 
     private fun startPlayback(position: Int) {
         try {
+            isPrepared = false
             mediaPlayer?.release()
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
@@ -55,41 +69,27 @@ class AudioService : Service() {
                         .build()
                 )
                 
-                // Track resource and status
                 val videoUri = Uri.parse("android.resource://$packageName/${R.raw.dadi_audio}")
-                Log.d("AudioService", "Initializing MediaPlayer with resource: $videoUri")
+                Log.d("AudioService", "MediaPlayer Resource: $videoUri")
                 
                 setDataSource(this@AudioService, videoUri)
                 
                 setOnPreparedListener { mp ->
-                    Log.d("AudioService", "MediaPlayer Prepared. Seeking to $position ms")
+                    Log.d("AudioService", "MediaPlayer Ready at $position ms")
+                    isPrepared = true
                     mp.seekTo(position)
                     mp.start()
-                    
-                    // Show notification for foreground status
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            startForeground(NOTIFICATION_ID, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-                        } else {
-                            startForeground(NOTIFICATION_ID, createNotification())
-                        }
-                    } catch (e: Exception) {
-                        Log.e("AudioService", "Failed to start foreground", e)
-                    }
                 }
                 
-                setOnErrorListener { mp, what, extra ->
-                    Log.e("AudioService", "MediaPlayer Error: what=$what, extra=$extra")
-                    // Handle LFS pointer issue if it occurs
-                    if (what == MediaPlayer.MEDIA_ERROR_UNKNOWN && extra == -2147483648) {
-                        Log.e("AudioService", "CRITICAL: Audio file unreadable. Likely a Git LFS pointer.")
-                    }
+                setOnErrorListener { _, what, extra ->
+                    Log.e("AudioService", "MediaPlayer Error ($what, $extra)")
+                    isPrepared = false
                     stopPlayback()
                     true
                 }
                 
                 setOnCompletionListener {
-                    Log.d("AudioService", "Playback Complete")
+                    Log.d("AudioService", "Playback Finished")
                     stopPlayback()
                     sendBroadcast(Intent("PLAYBACK_COMPLETE"))
                 }
@@ -97,12 +97,13 @@ class AudioService : Service() {
                 prepareAsync()
             }
         } catch (e: Exception) {
-            Log.e("AudioService", "Exception in startPlayback", e)
+            Log.e("AudioService", "startPlayback Exception", e)
         }
     }
 
     private fun stopPlayback() {
-        Log.d("AudioService", "Stopping Playback")
+        Log.d("AudioService", "Stopping")
+        isPrepared = false
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
@@ -113,11 +114,11 @@ class AudioService : Service() {
 
     fun isPlaying(): Boolean = mediaPlayer?.isPlaying ?: false
     
-    fun getDuration(): Int = mediaPlayer?.duration ?: 0
+    fun getDuration(): Int = if (isPrepared) mediaPlayer?.duration ?: 0 else 0
     
-    fun getCurrentPosition(): Int = mediaPlayer?.currentPosition ?: 0
+    fun getCurrentPosition(): Int = if (isPrepared) mediaPlayer?.currentPosition ?: 0 else 0
 
-    private fun createNotification(): Notification {
+    private fun createNotification(content: String): Notification {
         val stopIntent = Intent(this, AudioService::class.java).apply {
             action = "STOP_PLAYBACK"
         }
@@ -130,7 +131,7 @@ class AudioService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Inflight Journey")
-            .setContentText("Enjoying Rani Sati Dadi Mangal Path")
+            .setContentText(content)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(mainPendingIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
@@ -146,7 +147,7 @@ class AudioService : Service() {
                 "Audio Playback",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Controls for background audio playback"
+                description = "Background audio controls"
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
