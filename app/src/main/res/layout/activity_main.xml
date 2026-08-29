@@ -101,13 +101,11 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:fontFamily="serif"
-            android:letterSpacing="0.2"
+            android:letterSpacing="0.1"
             android:text="@string/developer_credit"
-            android:textAllCaps="true"
             android:textColor="@color/gold"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:alpha="0.8"/>
+            android:textSize="11sp"
+            android:alpha="0.6"/>
     </LinearLayout>
 
     <!-- Screen 2: Main Content (Hidden by default) -->
@@ -411,13 +409,11 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:fontFamily="serif"
-            android:letterSpacing="0.2"
+            android:letterSpacing="0.1"
             android:text="@string/developer_credit"
-            android:textAllCaps="true"
             android:textColor="@color/gold"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:alpha="0.8"
+            android:textSize="11sp"
+            android:alpha="0.6"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent" />
