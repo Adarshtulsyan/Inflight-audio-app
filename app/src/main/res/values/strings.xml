@@ -22,4 +22,5 @@
     <string name="proceed_to_cabin">Enter Cabin</string>
     <string name="welcome_title">Jai Dadi Ki</string>
     <string name="replay_journey">Replay Journey</string>
+    <string name="developer_credit">App developed by Adarsh Tulsyan</string>
 </resources>

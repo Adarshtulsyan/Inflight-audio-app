@@ -95,6 +95,16 @@
             android:textAllCaps="true"
             android:textColor="@color/background"
             android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:alpha="0.5"
+            android:fontFamily="sans-serif-light"
+            android:text="@string/developer_credit"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp" />
     </LinearLayout>
 
     <!-- Screen 2: Main Content (Hidden by default) -->
@@ -392,6 +402,19 @@
             android:textSize="11sp"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:alpha="0.5"
+            android:fontFamily="sans-serif-light"
+            android:text="@string/developer_credit"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
