@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Dadi Mangal Path</string>
     <string name="title">Rani Sati Dadi Mangal Path</string>
-    <string name="subtitle">Organised by Marwari Samaj</string>
+    <string name="subtitle">Organised by Jai Dadi Nam Bank Kashi</string>
     <string name="earphone_checking">Detecting audio devices…</string>
     <string name="earphone_prompt">Please connect your headset to begin the experience</string>
     <string name="earphone_confirmed">Headset Connected</string>
@@ -18,7 +18,7 @@
     <string name="audio_unavailable_msg">Media stream unavailable. Please check system connection.</string>
     <string name="welcome_message">We are honored to have you on board for this unique spiritual experience. Join us as we commence the Rani Sati Dadi Mangal Path, beautifully orchestrated for our journey through the skies.</string>
     <string name="organized_by_prefix">Organized by</string>
-    <string name="marwari_samaj">Marwari Samaj</string>
+    <string name="marwari_samaj">Jai Dadi Nam Bank Kashi</string>
     <string name="proceed_to_cabin">Enter Cabin</string>
     <string name="welcome_title">Jai Dadi Ki</string>
     <string name="replay_journey">Replay Journey</string>
