@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Dadi Mangal Path</string>
     <string name="title">Rani Sati Dadi Mangal Path</string>
-    <string name="subtitle">Organised by Jai Dadi Nam Bank Kashi</string>
+    <string name="subtitle">Organised by Jai Dadi Naam Bank Kashi</string>
     <string name="earphone_checking">Detecting audio devices…</string>
     <string name="earphone_prompt">Please connect your headset to begin the experience</string>
     <string name="earphone_confirmed">Headset Connected</string>
